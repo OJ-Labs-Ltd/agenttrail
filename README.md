@@ -153,7 +153,7 @@ Rebuild after frontend changes. The source, tests, original scene assets and thi
 
 ## Local by construction
 
-Both services bind to **127.0.0.1**. No account, telemetry, transcript upload, model calls or cloud service is required. Fonts and graphics are available locally. Kitchen reads bounded local metadata and sends only allowlisted activity fields to its browser. Map's Claude hook view can display shortened command text, search terms and other tool details, and saves recent activity under `~/.agenttrail`. Review visible task titles, paths and tool details before sharing a recording. [Data sources and local storage](docs/OBSERVABILITY.md#what-stays-on-your-machine)
+Both services bind to **127.0.0.1**. No account, telemetry, transcript upload, model calls or cloud service is required. Fonts and graphics are available locally. Kitchen reads bounded local metadata, only for the folders you watch (`--sources` and `--no-discovery` narrow it further), and sends only allowlisted activity fields to its browser. Map's Claude hook view can display shortened command text, search terms and other tool details, and saves recent activity under `~/.agenttrail`. Review visible task titles, paths and tool details before sharing a recording. [Data sources and local storage](docs/OBSERVABILITY.md#what-stays-on-your-machine)
 
 The Map is a dependency-free Node daemon and a static page. Kitchen is a separate package with a bundled Three.js frontend. Neither controls your agents, sends prompts, approves actions or marks their tasks complete.
 

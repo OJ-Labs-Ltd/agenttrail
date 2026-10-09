@@ -60,8 +60,10 @@ test('local server authenticates writes, limits scope, streams events and keeps 
 });
 test('browser feed carries handles instead of paths and handles round-trip through project actions',async t=>{
   const home=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'orbit-handles-'))),stateDir=path.join(home,'state');
-  const [root,other,typed]=['project','other','typed'].map(name=>path.join(home,name));await Promise.all([root,other,typed].map(dir=>fs.mkdir(dir)));
+  const [root,other,typed]=['project','other','typed'].map(name=>path.join(home,name));await Promise.all([path.join(root,'pkg'),other,typed].map(dir=>fs.mkdir(dir,{recursive:true})));
   const logDir=path.join(home,'.codex/sessions',...new Date().toISOString().slice(0,10).split('-'));await fs.mkdir(logDir,{recursive:true});
+  // Only sessions inside a watched root are listed, so the unwatched folder's log never reaches recentProjects.
+  await fs.writeFile(path.join(logDir,'watched.jsonl'),JSON.stringify({type:'session_meta',payload:{id:'logged',cwd:path.join(root,'pkg')}})+'\n');
   await fs.writeFile(path.join(logDir,'other.jsonl'),JSON.stringify({type:'session_meta',payload:{id:'elsewhere',cwd:other}})+'\n');
   const office=await startOffice({roots:[root],home,stateDir,port:0});t.after(async()=>{await office.close();await fs.rm(home,{recursive:true,force:true});});
   const fetcher=(p,opt)=>fetch(office.url+p,opt);
@@ -75,14 +77,16 @@ test('browser feed carries handles instead of paths and handles round-trip throu
   }
   assert.equal(state.projects[0].id,projectHandle(root));
   assert.ok(state.executors.length&&state.executors.every(e=>e.project===projectHandle(root)&&e.cwd==='pkg'));
+  assert.deepEqual(state.recentProjects.map(r=>r.name),['pkg'],'unwatched projects are not listed');
   assert.deepEqual(Object.keys(state.recentProjects[0]).sort(),['handle','lastSeenAt','name','providers']);
-  const otherHandle=state.recentProjects.find(r=>r.name==='other').handle;
+  const otherHandle=projectHandle(other);
   const headers={'x-office-token':boot.token,'content-type':'application/json'},post=(p,data)=>fetcher(p,{method:'POST',headers,body:JSON.stringify(data)});
   assert.equal((await post('/api/setup/preview',{project:otherHandle,provider:'cursor'})).status,400,'a handle that is not watched is refused');
   const preview=await post('/api/setup/preview',{project:projectHandle(root),provider:'cursor'}).then(r=>r.json());
   assert.ok(!path.isAbsolute(preview.file),'the settings file is shown project-relative');
   const unknown=await post('/api/projects',{handle:'0'.repeat(12)});assert.equal(unknown.status,400);assert.match((await unknown.json()).error,/could not be found/);
-  assert.equal((await post('/api/projects',{handle:otherHandle}).then(r=>r.json())).id,projectHandle(other));
+  assert.equal((await post('/api/projects',{handle:otherHandle})).status,400,'an unlisted handle cannot attach a folder');
+  assert.equal((await post('/api/projects',{handle:projectHandle(root)}).then(r=>r.json())).id,projectHandle(root));
   assert.equal((await post('/api/projects',{path:typed}).then(r=>r.json())).id,projectHandle(typed));
-  assert.deepEqual((await fetcher('/api/state').then(r=>r.json())).projects.map(p=>p.id).sort(),[root,other,typed].map(projectHandle).sort());
+  assert.deepEqual((await fetcher('/api/state').then(r=>r.json())).projects.map(p=>p.id).sort(),[root,typed].map(projectHandle).sort());
 });

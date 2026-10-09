@@ -70,6 +70,8 @@ Map and Kitchen have not yet consolidated their provider handling, so each keeps
 
 Both services bind to `127.0.0.1`. They require no Agenttrail account, telemetry service, transcript upload or extra model call. The local browser uses bundled graphics/fonts or system fonts.
 
+Kitchen reads provider logs only for the folders you watch. A Claude or Codex session is used only if its recorded working directory is inside a watched root; other projects' sessions are not parsed, tracked, counted, listed or sent to the browser. Claude's log directories are filtered by name before anything is opened (a sibling folder whose name merely starts with a watched one can still have its first lines opened and discarded). Codex rollouts are not filed by project, so the first 64 KiB of each recent rollout is opened to read its working directory and discarded if it is outside the watched roots. `--sources hooks,logs,files` selects which evidence is used, and `--no-discovery` stops Kitchen listing or opening anything under `~/.codex`, `~/.claude` or `~/.agenttrail`. Map has no log reader. It suggests no other repository, with or without `--no-discovery`: it neither reads other projects' records in `~/.agenttrail` nor lists sibling folders, so its `/suggest` answer is always empty. `--sources` can switch off its hook endpoint and its file-activity watching (it still reloads `PLAN.md`). [Exactly what is touched](kitchen/CONNECTING.md#local-scope-and-discovery-limits)
+
 Both services share one allowlist, `packages/kitchen/src/runtime/payload-allowlist.mjs`. It names the only fields the browser may receive for each event kind or hook. Anything not named is dropped before the event is stored, so a new field stays private until someone adds it on purpose. Raw prompts, reasoning, command bodies, tool arguments and tool output never reach either browser.
 
 Three rules apply on top of the field lists:
@@ -109,8 +111,8 @@ The Map shows a project-relative file path for a tool call that names one and no
 ### What can still be visible
 
 - **Titles are free text.** Kitchen task titles, native todo text and Map todo text are capped and redacted but are otherwise whatever the agent wrote, so a sensitive sentence in a title still appears. The Map shows `PLAN.md` text as written, since it is your own file.
-- **The Map's local-action endpoints are outside the allowlist.** `/whoami`, `/suggest` and `/spawn` still read and return absolute repository paths so that boards can find each other and start a sibling board. They are tracked as an open task in [PLAN.md](../PLAN.md).
-- **Kitchen still reads widely.** The log adapter reads Codex and Claude logs for every project on the host, not only the watched ones. The allowlist limits what reaches the browser, not what the process reads.
+- **The Map's local-action endpoints are outside the allowlist.** `/whoami` and `/spawn` still return absolute repository paths so that boards can find each other and start a sibling board. `/suggest` always answers empty. They are tracked as an open task in [PLAN.md](../PLAN.md).
+- **Kitchen still opens some logs it does not use.** Codex rollouts are not filed by project, so the first 64 KiB of each recent rollout is read to find its working directory, as described above. The allowlist limits what reaches the browser, not what the process reads.
 - **The Map's registry keeps the repository path.** `repoPath` in the saved state is how `agenttrail up` restarts boards. It stays on local disk and is not served to the browser.
 
 Saved repo selection and connector registration for Kitchen live under `~/.agent-office` by default. Its order history is held in memory and reconstructed from available observations after restart. The Map saves recent activity and cycle summaries under `~/.agenttrail`. Check what is on screen before sharing screenshots or recordings.

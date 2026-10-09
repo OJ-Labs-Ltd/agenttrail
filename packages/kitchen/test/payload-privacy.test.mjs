@@ -27,7 +27,7 @@ test('hostile events from hooks and both log formats never reach /api/state, /ap
   const keyedFile=path.join(root,'secrets',API_KEY,'.env'),timestamp=new Date().toISOString();
 
   // Log fixtures exist before startOffice, whose first tick reads them: no waiting is needed.
-  const codexDir=path.join(home,'.codex/sessions',...timestamp.slice(0,10).split('-')),claudeDir=path.join(home,'.claude/projects/hostile');
+  const codexDir=path.join(home,'.codex/sessions',...timestamp.slice(0,10).split('-')),claudeDir=path.join(home,'.claude/projects',root.replace(/[^a-zA-Z0-9]/g,'-'));
   await Promise.all([codexDir,claudeDir].map(dir=>fs.mkdir(dir,{recursive:true})));
   const codexRow=(type,payload)=>JSON.stringify({type,timestamp,payload});
   await fs.writeFile(path.join(codexDir,'hostile.jsonl'),[
