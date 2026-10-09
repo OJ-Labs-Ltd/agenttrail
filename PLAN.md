@@ -191,8 +191,8 @@ links: [plan-reader, runs, map]
 - [x] Prove the feed-only kitchen reads nothing outside its package {#kitchen-feed-tests}
   by: claude
   tech: scripted events through the intake, snapshot and stream asserted against the schema, and an fs-read spy covering paths outside the package (ATL-2).
-- [ ] Document the feed contract for outside feeders {#kitchen-feed-docs}
-  from: agent
+- [x] Document the feed contract for outside feeders {#kitchen-feed-docs}
+  by: claude
   tech: docs/kitchen/FEED.md field by field for normalizeHook input and snapshot v2; docs/OBSERVABILITY.md updated to match (ATL-2).
 - [x] Bring the runnable kitchen into this repository {#kitchen-import}
   by: codex

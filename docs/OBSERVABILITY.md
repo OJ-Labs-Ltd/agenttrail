@@ -66,6 +66,16 @@ A completed dish means a native todo was reported complete. A deployment or publ
 
 Map and Kitchen have not yet consolidated their provider handling, so each keeps its own history. They can run side by side: both hook setups can be installed in either order without removing each other, and Map activity never replaces a native todo list that Kitchen has observed. Kitchen changes a native todo list only when the tool result confirms the update; a rejected or interrupted `update_plan` or `TodoWrite` leaves the last confirmed list in place.
 
+## Feed-only mode
+
+`agenttrail-kitchen --feed-only` is for an external system that pushes events in, such as OJ Labs Director. It changes what Kitchen reads and what it accepts:
+
+- **Read:** nothing outside the package. It does not discover or read Codex or Claude logs, watch any folder, read `PLAN.md`, inspect provider hook configuration, or create a state directory. The project paths you pass are names for the incoming events and are never opened. The only files read are Kitchen's own bundled page, graphics and schema.
+- **Accepted:** `POST /api/hook` and `POST /api/artifact`, only with a bearer token that you supply in `AGENTTRAIL_FEED_TOKEN`. The service will not start without one. Every event is checked against a published JSON Schema, and unknown fields are rejected. The setup, attach and add-project routes do not exist in this mode.
+- **Sent to the browser and to any client of the three GET routes:** the same snapshot as normal mode, built only from the events you posted. That includes task titles, session identifiers, tool names and file names made relative to the project root. The GET routes need no token, so a feeder that exposes the Kitchen to other people must add its own authentication.
+
+The field-by-field contract is in [Feed-only mode](kitchen/FEED.md).
+
 ## What stays on your machine
 
 Both services bind to `127.0.0.1`. They require no Agenttrail account, telemetry service, transcript upload or extra model call. The local browser uses bundled graphics/fonts or system fonts.
