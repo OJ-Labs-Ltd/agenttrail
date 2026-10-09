@@ -179,8 +179,8 @@ links: [plan-reader, runs, map]
 - [x] Check every incoming feed event against a published schema {#kitchen-feed-schema}
   by: claude
   tech: JSON Schema for the hook event and snapshot v2 under packages/kitchen, plus a small built-in validator that rejects unknown fields; no new dependency (ATL-2).
-- [ ] Run the kitchen with no filesystem reading at all {#kitchen-feed-server}
-  from: agent
+- [x] Run the kitchen with no filesystem reading at all {#kitchen-feed-server}
+  by: claude
   tech: startOffice feed-only option — no watcher, no log discovery, no setup/apply routes; POST /api/hook and /api/artifact need a bearer token; outputs are /api/bootstrap, /api/state and /api/events only (ATL-2).
 - [ ] Refuse to start the feed-only kitchen without a token {#kitchen-feed-cli}
   from: agent
