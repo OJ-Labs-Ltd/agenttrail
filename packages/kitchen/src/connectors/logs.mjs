@@ -5,8 +5,8 @@ import { codexEvents, claudeEvents } from './events.mjs';
 const LIMIT=2*1024*1024,DAY=86400_000;
 async function entries(dir){try{return await fs.readdir(dir,{withFileTypes:true});}catch{return [];}}
 export class LogObserver {
-  constructor(home,store,{codexHome=path.join(home,'.codex'),claudeHome=path.join(home,'.claude'),discovery=true}={}){
-    this.home=home;this.discovery=discovery;this.headers=new Map();this.codexHome=codexHome;this.claudeHome=claudeHome;this.store=store;this.files=new Map();this.available={codex:false,claude:false};this.lastDiscovery=0;this.recentProjects=[];this.limited=false;
+  constructor(home,store,{codexHome=path.join(home,'.codex'),claudeHome=path.join(home,'.claude'),discovery=true,aliases=[]}={}){
+    this.home=home;this.aliases=aliases;this.discovery=discovery;this.headers=new Map();this.codexHome=codexHome;this.claudeHome=claudeHome;this.store=store;this.files=new Map();this.available={codex:false,claude:false};this.lastDiscovery=0;this.recentProjects=[];this.limited=false;
   }
   async metadata(file,provider){
     let handle;try{
@@ -29,8 +29,9 @@ export class LogObserver {
     }
     const claude=path.join(this.claudeHome,'projects');
     // Claude names each directory after its cwd, so directories outside the watched roots are never listed or opened.
-    // ponytail: assumes Claude's non-alphanumeric-to-dash naming and 200-character cut-off; read each file's cwd instead if that changes.
-    const prefixes=this.store.roots.map(r=>r.replace(/[^a-zA-Z0-9]/g,'-').slice(0,200));
+    // Roots are real paths but Claude names a directory after the cwd as launched, so the paths the user gave (aliases) count too.
+    // ponytail: assumes Claude's non-alphanumeric-to-dash naming and 200-character cut-off. The encoding cannot tell /a/foo/bar from /a/foo-bar, so a sibling such as /a/foo-bar has its header opened and then discarded by the cwd check; read each file's cwd instead if that ever matters.
+    const prefixes=[...this.store.roots,...this.aliases].map(r=>r.replace(/[^a-zA-Z0-9]/g,'-').slice(0,200));
     for(const dir of (await entries(claude)).filter(e=>e.isDirectory()&&prefixes.some(p=>e.name.startsWith(p))).slice(0,1000))for(const f of await entries(path.join(claude,dir.name)))if(f.isFile()&&f.name.endsWith('.jsonl')){if(candidates.length>=12000){this.limited=true;break;}candidates.push({file:path.join(claude,dir.name,f.name),provider:'claude'});}
     const recent=[];for(const c of candidates){try{const stat=await fs.stat(c.file);if(Date.now()-stat.mtimeMs<DAY)recent.push({...c,stat});}catch{}}
     const found=[],headers=new Map();

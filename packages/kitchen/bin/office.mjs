@@ -35,7 +35,7 @@ export async function main(args=process.argv.slice(2)){
   const {port,open,stateDir,sources,discovery}=options,roots=options.roots;
   if(!roots.length&&(options.saved||process.cwd()===appRoot)){try{const saved=JSON.parse(await fs.readFile(path.join(stateDir,'projects.json'),'utf8'));if(Array.isArray(saved))roots.push(...saved.filter(s=>typeof s==='string'));}catch{}}
   if(!roots.length)roots.push(process.cwd());
-  const unique=[];for(const root of roots){let real;try{real=await fs.realpath(root);if(!(await fs.stat(real)).isDirectory())throw 0;}catch{if(options.saved)continue;throw new Error('Project folder does not exist: '+root);}if(!unique.includes(real))unique.push(real);}
+  const aliases=[...roots],unique=[];for(const root of roots){let real;try{real=await fs.realpath(root);if(!(await fs.stat(real)).isDirectory())throw 0;}catch{if(options.saved)continue;throw new Error('Project folder does not exist: '+root);}if(!unique.includes(real))unique.push(real);}
   if(!unique.length||unique.length>12)throw new Error('Choose between one and twelve existing project folders.');
   await fs.mkdir(stateDir,{recursive:true,mode:0o700});
   let registration;try{registration=JSON.parse(await fs.readFile(path.join(stateDir,'server.json'),'utf8'));}catch{}
@@ -51,7 +51,7 @@ export async function main(args=process.argv.slice(2)){
     }
   }
   await fs.writeFile(path.join(stateDir,'projects.json'),JSON.stringify(unique),{mode:0o600});
-  const office=await startOffice({roots:unique,home:os.homedir(),stateDir,port,sources,discovery});const url=launchUrl(office.url,unique[0],options.example);
+  const office=await startOffice({roots:unique,aliases,home:os.homedir(),stateDir,port,sources,discovery});const url=launchUrl(office.url,unique[0],options.example);
   console.log(`Agenttrail Kitchen is ready: ${url}\nWatching ${unique.map(p=>path.basename(p)).join(', ')}. Local metadata only.\nCodex and Claude observations are automatic when available. Use Connect agents for provider hooks.`);if(open)openBrowser(url);
   for(const signal of ['SIGINT','SIGTERM'])process.once(signal,async()=>{await office.close();process.exit(0);});
 }

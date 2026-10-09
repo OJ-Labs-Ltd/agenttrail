@@ -39,6 +39,28 @@ test('only logs whose recorded cwd is inside the watched project are read, liste
   assert.ok(!seen.some(f=>f.includes(path.join(home,'.claude'))&&f.includes('other')),'other project Claude transcript is never listed or opened');
   assert.ok(!JSON.stringify(observer.recentProjects).includes(other));
 });
+test('a Claude transcript launched through a symlinked path is found when the link is a known alias of the watched root',async t=>{
+  const {home,watched}=await twoProjects(t),link=path.join(home,'link');await fs.symlink(watched,link);
+  const claudeDir=path.join(home,'.claude/projects',link.replace(/[^a-zA-Z0-9]/g,'-'));await fs.mkdir(claudeDir,{recursive:true});
+  await fs.writeFile(path.join(claudeDir,'linked.jsonl'),JSON.stringify({type:'user',cwd:link,sessionId:'claude-linked',timestamp:new Date().toISOString(),message:{role:'user',content:'invented words'}})+'\n');
+  const hidden=new LogObserver(home,new CrewStore([watched]));await hidden.discover();
+  assert.ok(![...hidden.files.keys()].some(f=>f.includes('linked.jsonl')),'without the alias the link-named directory is not looked at');
+  const observer=new LogObserver(home,new CrewStore([watched]),{aliases:[link]});await observer.discover();
+  assert.ok([...observer.files.keys()].some(f=>f.includes('linked.jsonl')));
+});
+test('a sibling project whose directory name merely starts with the watched name is never tracked',async t=>{
+  const {home,watched}=await twoProjects(t),sibling=watched+'-two';await fs.mkdir(sibling);
+  const dir=path.join(home,'.claude/projects',sibling.replace(/[^a-zA-Z0-9]/g,'-'));await fs.mkdir(dir,{recursive:true});
+  await fs.writeFile(path.join(dir,'sibling.jsonl'),JSON.stringify({type:'user',cwd:sibling,sessionId:'claude-sibling',timestamp:new Date().toISOString(),message:{role:'user',content:'invented words'}})+'\n');
+  const observer=new LogObserver(home,new CrewStore([watched]));await observer.poll();
+  assert.ok(![...observer.files.keys()].some(f=>f.includes('sibling.jsonl')));assert.deepEqual(observer.recentProjects.map(p=>p.path),[watched]);
+});
+test('the only other-project file opened is a Codex rollout header, to read its working directory',async t=>{
+  const {home,watched}=await twoProjects(t),observer=new LogObserver(home,new CrewStore([watched]));
+  const opened=(await touched(()=>observer.poll())).filter(f=>f.includes('other'));
+  assert.ok(opened.some(f=>f.includes(path.join('.codex','sessions'))&&f.endsWith('other.jsonl')),'the Codex header is opened to learn the cwd');
+  assert.ok(!opened.some(f=>f.includes(path.join('.claude','projects'))),'no other-project Claude path is touched');
+});
 test('a project added later replays its logs, and discovery stays scoped to the roots',async t=>{
   const {home,watched,other}=await twoProjects(t),roots=[watched],store=new CrewStore(roots),observer=new LogObserver(home,store);
   await observer.poll();roots.push(other);observer.lastDiscovery=0;await observer.poll();
@@ -60,6 +82,8 @@ test('the server refuses hook events when the hooks source is off',async t=>{
   const {hookToken}=JSON.parse(await fs.readFile(path.join(stateDir,'server.json'),'utf8'));
   const res=await fetch(office.url+'/api/hook',{method:'POST',headers:{authorization:`Bearer ${hookToken}`,'content-type':'application/json'},body:JSON.stringify({provider:'claude',cwd:watched})});
   assert.equal(res.status,403);
+  const artifact=await fetch(office.url+'/api/artifact',{method:'POST',headers:{authorization:`Bearer ${hookToken}`,'content-type':'application/json'},body:JSON.stringify({cwd:watched})});
+  assert.equal(artifact.status,200,'artifact posts are not hook events and stay open');
 });
 test('--sources and --no-discovery parse, default to everything and reject unknown values',()=>{
   assert.deepEqual(parseArgs([]).sources,['hooks','logs','files']);assert.equal(parseArgs([]).discovery,true);
