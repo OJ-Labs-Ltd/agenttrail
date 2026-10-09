@@ -179,6 +179,14 @@ The Map is a dependency-free Node daemon and a static page. Kitchen is a separat
 
 **What is still experimental?** Local provider log formats can change. Cursor's native live behavior and Windows remain unverified. Shared artifact receipts need explicit integration, and order history is reconstructed from available observations after restarting. No editor extension has been released yet.
 
+## What OJ Labs changed
+
+This is OJ Labs' fork of [sodiumsun/agenttrail](https://github.com/sodiumsun/agenttrail) (MIT, see [ATTRIBUTION.md](ATTRIBUTION.md)). OJ Labs Director embeds the Kitchen so customers can see what is happening with their tickets. Package names and structure stay as upstream's, nothing is published to npm from the fork, both services stay on `127.0.0.1` with no telemetry, and there are no new dependencies. Each ticket that changes the fork adds a line here. [How upstream changes are merged](docs/UPSTREAM-SYNC.md)
+
+| Ticket | Change |
+| --- | --- |
+| ATL-7 | Added ATTRIBUTION.md, this section, the upstream sync routine, and a CI workflow that runs upstream's Kitchen checks on every pull request. |
+
 ## Contribute and license
 
 [Report a bug](https://github.com/sodiumsun/agenttrail/issues) · [Contributing](CONTRIBUTING.md) · [Kitchen source](packages/kitchen) · [Third-party notices](packages/kitchen/docs/THIRD-PARTY.md)
