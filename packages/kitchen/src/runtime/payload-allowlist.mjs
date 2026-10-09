@@ -16,7 +16,7 @@ export const EVENT_FIELDS={
   permission:IDENTITY,
   input:IDENTITY,
   interrupted:IDENTITY,
-  activity:[...IDENTITY,'tool','file'],
+  activity:[...IDENTITY,'tool','file',...TASKS],
   unknown:IDENTITY,
   role:[...IDENTITY,'roleId','workflowId','runId','itemId','orderId'],
   observation:[...IDENTITY,'work'],
