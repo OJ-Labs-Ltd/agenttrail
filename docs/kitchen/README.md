@@ -60,6 +60,7 @@ An optional `.office/kitchen.json` names responsibilities and groups rooms. The 
 - [Workflow configuration and role bindings](WORKFLOW-INTEGRATION.md)
 - [Multiple kitchens](KITCHENS.md)
 - [Explicit artifact receipts](HANDOFFS.md)
+- [Feed-only mode: the contract for an external feeder](FEED.md)
 - [Contributing and checks](../../CONTRIBUTING.md)
 - [Release notes](RELEASE.md)
 
