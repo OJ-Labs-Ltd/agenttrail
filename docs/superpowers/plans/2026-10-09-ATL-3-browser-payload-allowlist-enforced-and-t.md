@@ -84,6 +84,7 @@ Standards touched: TST-1, TST-4, TST-5, TST-6, SEC-1, SEC-12
     - Temporarily reverting the allowlist call in CrewStore.accept or the egress scrub makes the test fail (seen to fail, noted in the report)
     - No setTimeout/sleep is used to wait; npm test passes in packages/kitchen with --test-concurrency=1
   - Risk: SSE reading needs an abort and a bounded, event-driven wait (read until the data: line arrives), as scripts/check-package.mjs already does. The log adapter only watches roots inside the temp home, so reuse the pattern from server.test.mjs ('log reader resumes partial records'). Use mkdtemp under os.tmpdir() and clean up in t.after.
+  - Commit: `7d2b9254dfc6`
   - Commit: `3e06e867a0e1`
 
 - [ ] **Task 5: Apply the allowlist to the Map's hook events, saved state and live model** (after 1)
