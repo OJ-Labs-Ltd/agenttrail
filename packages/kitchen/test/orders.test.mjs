@@ -47,7 +47,8 @@ test('event observation retains intermediate role contributions even before the 
 test('native adapters retain task IDs and do not expose unrelated fields',()=>{
  const input={todos:[{id:'native-1',content:'Read notes',status:'in_progress',private:'secret'}]};
  const event=normalizeHook('claude',{hook_event_name:'PostToolUse',session_id:'s',cwd:p.id,tool_name:'TodoWrite',tool_input:input});assert.deepEqual(event.tasks,[task('Read notes','in_progress','native-1')]);
- const [e]=codexEvents({timestamp:new Date().toISOString(),type:'response_item',payload:{type:'function_call',name:'update_plan',arguments:JSON.stringify({plan:[{id:'x',step:'Cook',status:'pending'}]})}},{id:'s',cwd:p.id},'file');assert.deepEqual(e.tasks,[task('Cook','pending','x')]);
+ const codexMeta={id:'s',cwd:p.id},timestamp=new Date().toISOString();codexEvents({timestamp,type:'response_item',payload:{type:'function_call',call_id:'plan',name:'update_plan',arguments:JSON.stringify({plan:[{id:'x',step:'Cook',status:'pending'}]})}},codexMeta,'file');
+ const [e]=codexEvents({timestamp,type:'response_item',payload:{type:'function_call_output',call_id:'plan',output:'Plan updated'}},codexMeta,'file');assert.deepEqual(e.tasks,[task('Cook','pending','x')]);
 });
 
 test('plan bookkeeping does not invent cooking on the newly marked in-progress task',()=>{
