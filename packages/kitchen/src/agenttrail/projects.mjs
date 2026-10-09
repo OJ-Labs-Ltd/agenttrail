@@ -97,7 +97,8 @@ export class Projects {
     }else if(boardComponent&&!conflict){
       component=boardComponent;association={kind:'inferred',source:'agenttrail',reason:'Agenttrail matched this session to a component'};
     }else if(conflict){association.reason='File and Agenttrail associations disagree';}
-    const useNative=s.sessionTasks&&(!board||(s.taskContextAt||0)>=board.at),sessionTasks=useNative?s.sessionTasks:board?.todos||[];
+    // Map events are not task results: they may only fill in a plan Kitchen has not observed itself.
+    const useNative=!!s.sessionTasks,sessionTasks=useNative?s.sessionTasks:board?.todos||[];
     return {...s,component:component?{id:component.id,title:component.title}:null,componentCandidates:[...new Set([...matches.map(c=>c.id),...(boardComponent?[boardComponent.id]:[])])],association,sessionTasks,planAvailable:!!(useNative||board?.hasPlan),taskSource:useNative?'native plan':board?.hasPlan?'Agenttrail run':null,currentTask:sessionTasks.find(t=>t.status==='in_progress')||null,contextAt:useNative?s.taskContextAt:board?.at||null};
   });}
   close(){for(const watcher of this.watchers)watcher.close();}
