@@ -17,8 +17,9 @@ const appRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const hash=s=>crypto.createHash('sha256').update(s).digest('hex');
 // Feed-only mode: no log discovery, file watching or state directory; the only inputs are token-gated, schema-validated POSTs.
 const feedPaths=['/api/hook','/api/artifact','/api/bootstrap','/api/state','/api/events'];
+export const feedTokenMinimum=16;
 export async function startOffice({roots,home,stateDir,port=4780,observe=true,feedOnly=false,feedToken}) {
-  if(feedOnly&&!(typeof feedToken==='string'&&feedToken.length>=16))throw new Error('Feed-only mode needs a feed token of at least 16 characters.');
+  if(feedOnly&&!(typeof feedToken==='string'&&feedToken.length>=feedTokenMinimum))throw new Error(`Feed-only mode needs a feed token of at least ${feedTokenMinimum} characters.`);
   if(!feedOnly)await fs.mkdir(stateDir,{recursive:true,mode:0o700});
   const csrf=crypto.randomBytes(24).toString('hex'),hookToken=feedOnly?feedToken:crypto.randomBytes(24).toString('hex');
   const authorised=req=>crypto.timingSafeEqual(Buffer.from(hash(req.headers.authorization||'')),Buffer.from(hash(`Bearer ${hookToken}`)));

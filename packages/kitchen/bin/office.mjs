@@ -4,32 +4,50 @@ import path from 'node:path';
 import os from 'node:os';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
-import {startOffice} from '../src/server.mjs';
+import {startOffice,feedTokenMinimum} from '../src/server.mjs';
 
 const appRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 export function parseArgs(args,cwd=process.cwd()){
   const options={roots:[],port:4780,open:true,saved:false,stateDir:path.join(os.homedir(),'.agent-office')};
   const value=i=>{if(!args[i]||args[i].startsWith('--'))throw new Error('Provide a value for '+args[i-1]+'.');return args[i];};
+  const rawRoots=[];
   for(let i=0;i<args.length;i++){
-    if(args[i]==='--project')options.roots.push(path.resolve(cwd,value(++i)));
+    if(args[i]==='--project')rawRoots.push(value(++i));
     else if(args[i]==='--port')options.port=Number(value(++i));
     else if(args[i]==='--state-dir')options.stateDir=path.resolve(cwd,value(++i));
     else if(args[i]==='--no-open')options.open=false;
     else if(args[i]==='--saved')options.saved=true;
+    else if(args[i]==='--feed-only')options.feedOnly=true;
     else if(args[i]==='--example')options.example=true;
     else if(args[i]==='--help')options.help=true;
-    else if(!args[i].startsWith('-'))options.roots.push(path.resolve(cwd,args[i]));
+    else if(!args[i].startsWith('-'))rawRoots.push(args[i]);
     else throw new Error('Unknown option: '+args[i]);
   }
+  // Feed-only roots are logical labels for the feeder's events and are never looked up on disk, so a relative one has no meaning.
+  if(options.feedOnly){
+    if(!rawRoots.length)throw new Error('Feed-only mode needs at least one --project path.');
+    const relative=rawRoots.find(root=>!path.isAbsolute(root));if(relative)throw new Error('Feed-only project paths must be absolute: '+relative);
+  }
+  options.roots=rawRoots.map(root=>path.resolve(cwd,root));
   if(!Number.isInteger(options.port)||options.port<1024||options.port>65515)throw new Error('Choose a port from 1024 through 65515.');
   return options;
 }
 export function liveUrl(base,project){const url=new URL(base);url.searchParams.set('project',project);url.searchParams.set('mode','live');return url.href;}
 function launchUrl(base,project,example){const url=new URL(liveUrl(base,project));if(example){url.searchParams.set('mode','demo');url.searchParams.delete('project');}return url.href;}
 function openBrowser(url){const bin=process.platform==='darwin'?'open':process.platform==='win32'?'cmd':'xdg-open',params=process.platform==='win32'?['/c','start','',url]:[url];const child=spawn(bin,params,{stdio:'ignore',detached:true});child.on('error',()=>{});child.unref();}
+// The token comes only from the environment: argv leaks through ps and shell history.
+async function startFeedOnly({roots,port,stateDir}){
+  const feedToken=process.env.AGENTTRAIL_FEED_TOKEN;
+  if(!feedToken||feedToken.length<feedTokenMinimum)throw new Error(`Feed-only mode needs the AGENTTRAIL_FEED_TOKEN environment variable, at least ${feedTokenMinimum} characters.`);
+  // stateDir only names paths inside the unused setup commands here; feed-only mode never creates or reads it.
+  const office=await startOffice({roots,home:os.homedir(),stateDir,port,feedOnly:true,feedToken});
+  console.log(`Agenttrail Kitchen feed-only is ready on ${office.url}\nAccepting token-gated events for ${roots.length} logical project root(s). No files are read.`);
+  for(const signal of ['SIGINT','SIGTERM'])process.once(signal,async()=>{await office.close();process.exit(0);});
+}
 export async function main(args=process.argv.slice(2)){
   const options=parseArgs(args);
-  if(options.help){console.log('Agenttrail Kitchen (experimental)\n  agenttrail-kitchen .             Watch the current repo\n  agenttrail-kitchen /path/to/repo  Open any working folder\n  --example                       Open the labeled example view\n  --project /path (repeatable)\n  --saved                         Reopen saved folders\n  --port 4780\n  --no-open\n  --state-dir /absolute/state\n\nNo PLAN.md, Agenttrail install, or repo changes required. A running kitchen is reused and receives the requested folders.');return;}
+  if(options.help){console.log('Agenttrail Kitchen (experimental)\n  agenttrail-kitchen .             Watch the current repo\n  agenttrail-kitchen /path/to/repo  Open any working folder\n  --example                       Open the labeled example view\n  --project /path (repeatable)\n  --saved                         Reopen saved folders\n  --port 4780\n  --no-open\n  --feed-only                      Headless intake: reads no files, opens no browser. Needs absolute --project paths\n                                  and the AGENTTRAIL_FEED_TOKEN environment variable (never an argument)\n  --state-dir /absolute/state\n\nNo PLAN.md, Agenttrail install, or repo changes required. A running kitchen is reused and receives the requested folders.');return;}
+  if(options.feedOnly)return startFeedOnly(options);
   const {port,open,stateDir}=options,roots=options.roots;
   if(!roots.length&&(options.saved||process.cwd()===appRoot)){try{const saved=JSON.parse(await fs.readFile(path.join(stateDir,'projects.json'),'utf8'));if(Array.isArray(saved))roots.push(...saved.filter(s=>typeof s==='string'));}catch{}}
   if(!roots.length)roots.push(process.cwd());
