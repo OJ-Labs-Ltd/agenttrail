@@ -30,6 +30,9 @@ function connect(child){
       else listeners.forEach(listener=>listener(message));
     }
   });
+  // On Linux the pipes are sockets, and a browser that dies with data unread resets them (ECONNRESET, EPIPE).
+  // Unhandled, that error event kills this process before the verdict is printed; the exit handler below reports it.
+  input.on('error',()=>{});output.on('error',()=>{});
   // A crashed browser never answers, so fail fast instead of hanging until the CI timeout.
   child.once('exit',()=>pending.forEach(({reject})=>reject(new Error('Chromium exited before answering.'))));
   return {
