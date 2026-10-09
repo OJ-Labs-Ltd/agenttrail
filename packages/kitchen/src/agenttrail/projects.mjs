@@ -33,10 +33,11 @@ export function matchesGlob(file,glob) {
 }
 const ignored=f=>/(^|\/)(\.git|node_modules|\.office|\.agenttrail|dist|coverage)(\/|$)|\.DS_Store|\.(swp|tmp)$/.test(f);
 export class Projects {
-  constructor(roots,home,store){this.roots=roots;this.home=home;this.store=store;this.data=new Map();this.watchers=[];this.runContext=new Map();this.queues=new WorkflowQueues();this.profiles=new CrewProfiles();}
+  constructor(roots,home,store,{discovery=true,watchFiles=true}={}){this.roots=roots;this.home=home;this.store=store;this.discovery=discovery;this.watchFiles=watchFiles;this.data=new Map();this.watchers=[];this.runContext=new Map();this.queues=new WorkflowQueues();this.profiles=new CrewProfiles();}
   watch(root){
     if(this.data.has(root))return;
     const project={id:root,name:path.basename(root),components:[],activity:[],boardUrl:null,contextSource:'plan',watchStatus:'watching',planStamp:-1};this.data.set(root,project);
+    if(!this.watchFiles){project.watchStatus='plan only';return;}
     try{this.watchers.push(fs.watch(root,{recursive:true},(_,file)=>{
       const f=String(file||'').split(path.sep).join('/');if(!f||ignored(f))return;
       const at=Date.now();project.activity=[{file:clean(f,300),at},...project.activity.filter(a=>a.file!==f)].slice(0,10);
@@ -54,6 +55,7 @@ export class Projects {
       if(p.workflow){p.workflow.stations=workflowStations(p.components,p.workflow.roles);if(p.workflow.adapter==='reddit-loop')p.workflow.queue=await this.queues.snapshot(root);}
       if(configError)p.warnings.push(configError);
       p.boardUrl=null;p.contextSource='plan';
+      if(!this.discovery)return; // The Map's registry sits under the home directory.
       try{
         const hash=crypto.createHash('sha1').update(root).digest('hex').slice(0,12);
         const saved=JSON.parse(await fsp.readFile(path.join(this.home,'.agenttrail',hash+'.json'),'utf8'));

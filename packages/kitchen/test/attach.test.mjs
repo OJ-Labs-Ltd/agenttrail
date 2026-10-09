@@ -15,10 +15,10 @@ async function fixture(t){const home=await fs.realpath(await fs.mkdtemp(path.joi
 const line=(payload,at,type='response_item')=>JSON.stringify({type,timestamp:new Date(at).toISOString(),payload})+'\n';
 async function log(dir,root){const now=Date.now(),file=path.join(dir,'resumed.jsonl');await fs.writeFile(file,JSON.stringify({type:'session_meta',payload:{id:'resumed',cwd:root}})+'\n'+line({type:'task_started',turn_id:'one'},now-4,'event_msg')+line({type:'function_call',name:'update_plan',call_id:'plan',arguments:JSON.stringify({plan:[{step:'Check the current change',status:'in_progress'}]})},now-3)+line({type:'function_call_output',call_id:'plan',output:'Plan updated'},now-2)+line({type:'function_call',name:'Read',call_id:'read',arguments:JSON.stringify({file_path:'app.js',private:'do-not-show'})},now-1));return file;}
 
-test('discovers an old resumed session and replays it only after its repo is selected',async t=>{
+test('an old resumed session is neither listed nor replayed until its repo is selected',async t=>{
  const {home,a,b,dir}=await fixture(t);await log(dir,b);const roots=[a],store=new CrewStore(roots),observer=new LogObserver(home,store);await observer.poll();
- assert.equal(store.snapshot().length,0);assert.equal(observer.recentProjects[0].path,b);assert.ok(!JSON.stringify(observer.recentProjects).includes('do-not-show'));
- roots.push(b);await observer.poll();assert.equal(store.snapshot().length,1);assert.equal(store.snapshot()[0].state,'reading');assert.equal(store.snapshot()[0].sessionTasks[0].title,'Check the current change');
+ assert.equal(store.snapshot().length,0);assert.deepEqual(observer.recentProjects,[]);
+ roots.push(b);observer.lastDiscovery=0;await observer.poll();assert.equal(observer.recentProjects[0].path,b);assert.ok(!JSON.stringify(observer.recentProjects).includes('do-not-show'));assert.equal(store.snapshot().length,1);assert.equal(store.snapshot()[0].state,'reading');assert.equal(store.snapshot()[0].sessionTasks[0].title,'Check the current change');
 });
 test('the CLI attaches a planless repo to the existing service and replays real log events',async t=>{
  const {home,a,b,dir}=await fixture(t);await log(dir,b);const stateDir=path.join(home,'state'),office=await startOffice({roots:[a],home,stateDir,port:0});t.after(()=>office.close());
