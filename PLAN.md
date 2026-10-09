@@ -113,8 +113,9 @@ links: [map]
 files: [bin/**, public/**]
 - [ ] Restrict Map actions to trusted local requests {#runs-request-boundary}
   tech: repository review reproduced missing Host/Origin validation and mutation authentication; add coverage for UI actions, hooks and cross-board relays.
-- [ ] Keep Map and Kitchen hook setup independent {#runs-distinct-hooks}
-  tech: Map's substring detection mistakes Kitchen's relay for its own; verify both installation orders and preserve unrelated hooks.
+- [x] Keep Map and Kitchen hook setup independent {#runs-distinct-hooks}
+  by: claude
+  tech: hasMapHook in bin/agenttrail.mjs matches only Map's own `agenttrail.mjs hook` command, not Kitchen's relay; test/coexistence.test.mjs installs both in either order and removes Kitchen's.
 - [x] Receive hook events and track sessions {#runs-endpoint}
   by: claude
   tech: /events endpoint; per-session todos, current tool, recent calls
@@ -172,10 +173,12 @@ files: [bin/**, public/**]
 tech: optional kitchen package, local observers, workflow model and Three.js renderer
 files: [packages/kitchen/**]
 links: [plan-reader, runs, map]
-- [ ] Preserve native todos when Map reports newer activity {#kitchen-native-plan-precedence}
-  tech: Projects.enrich currently lets a newer general Map event replace a confirmed native task list with empty board todos and withdraw its dishes.
-- [ ] Confirm plan updates before serving completed dishes {#kitchen-plan-acknowledgements}
-  tech: wait for successful Codex update_plan and legacy TodoWrite results; failed or interrupted calls must retain the last confirmed plan.
+- [x] Preserve native todos when Map reports newer activity {#kitchen-native-plan-precedence}
+  by: claude
+  tech: Projects.enrich uses board todos only when the session has no native list, so newer Map events can no longer withdraw dishes.
+- [x] Confirm plan updates before serving completed dishes {#kitchen-plan-acknowledgements}
+  by: claude
+  tech: Codex update_plan and Claude log TodoWrite now emit tasks on the successful tool result, not the call; rejected or interrupted calls keep the last confirmed plan.
 - [x] Read only the logs of the folders you watch {#kitchen-scoped-logs}
   by: claude
   tech: LogObserver keeps a session only when its recorded cwd is inside a watched root; --sources hooks,logs,files and --no-discovery switch evidence off, and Map honours the same flags
@@ -280,6 +283,7 @@ files: [README.md, docs/**, package.json, CONTRIBUTING.md, examples/**, .github/
 
 ## decisions
 - 2026-10-09: Log discovery is scoped to the watched project by default. Sessions whose recorded cwd is outside a watched root are not parsed, tracked, counted or listed, so the folder picker only suggests watched projects. --no-discovery stops all reads under the home directory. Codex rollouts are filed by date, so their 64 KiB header is still opened once to read the cwd; this is documented rather than hidden. Review cycle 1: the Claude directory filter also accepts the paths the user gave (aliases, saved in projects.json), because Claude names a directory after the cwd as launched and roots are real paths. Observer `available` now means a watched-folder session exists; the UI does not read it. /api/artifact is no longer blocked by --sources without hooks. Map honours --sources too; this is extra surface to accept or trim.
+- 2026-10-09: Fix the three coexistence and acknowledgement defects named in docs/OBSERVABILITY.md (ATL-4). Kitchen's native todo list changes only on a confirmed tool result and always outranks Map board todos; Map recognises only its own hook command, so both hook setups coexist. The doc's known-limits paragraphs are removed now that this holds.
 - 2026-10-09: OJ Labs fork hygiene (ATL-7). Leave upstream's kitchen.yml untouched so upstream merges stay clean; add a separate fork-checks.yml that runs the same steps on every pull request (upstream's runs only for changed kitchen paths), with a test that fails if the two drift apart. Credit upstream in ATTRIBUTION.md, list fork tickets in the README, document the fetch-and-merge routine in docs/UPSTREAM-SYNC.md. No package renames, nothing published to npm from the fork, no new dependencies.
 - 2026-09-09: Review the public repository for concrete reliability and setup issues, recording reproducible findings separately from planned features. Describe Agenttrail as the local observability project with two views: Agenttrail Map for project structure and activity, and Agenttrail Kitchen for native tasks and role contributions. Document their current independent services and differing provider support rather than implying a unified event backend or agent orchestration.
 - 2026-09-08: Publish Kitchen to npm now that the owner has restored registry login. Use alpha.3 for the refreshed package README instead of changing the existing alpha.2 archive; keep the experimental version explicit and use the latest tag so npx agenttrail-kitchen . works. Verify the exact public package from a fresh consumer environment, then publish matching GitHub release assets and setup instructions. The owner chose browser setup first; no editor extension is being added.

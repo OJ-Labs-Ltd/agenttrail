@@ -395,7 +395,8 @@ function lintPlan() {
 let hooksInstalledCache = { at: 0, val: false }
 function hooksInstalled() {
   if (Date.now() - hooksInstalledCache.at < 30000) return hooksInstalledCache.val
-  const val = safeRead(path.join(repo, '.claude', 'settings.local.json')).includes('agenttrail')
+  let val = false
+  try { val = Object.values(JSON.parse(safeRead(path.join(repo, '.claude', 'settings.local.json'))).hooks || {}).some(hasMapHook) } catch {}
   hooksInstalledCache = { at: Date.now(), val }
   return val
 }
@@ -748,6 +749,12 @@ tech: scaffolding
   console.log('  Read the "agenttrail plan convention" section in CLAUDE.md or AGENTS.md. Then study this repo in trust order — the code and directory layout first (what exists), git log for what is actually recent, decision logs and any in-progress build/handoff docs for what is in flight, and README/roadmap prose LAST and only for open intent (founding docs rot; cross-check their claims against git log) — and rewrite PLAN.md as the real map of this codebase: components with stable {#id}s, needs:/links: edges between them, files: globs for the paths each owns, and verb-led concrete titles with tech: sublines. Keep it to 5-9 components no matter how big the repo — a component is a part one agent could own for a session, with its own doneness and at least one edge; anything smaller is a task inside one. Verify every status against the CODE, not the docs — READMEs and roadmaps rot; mark [x] only after finding the implementing source or artifact, and cite that evidence on its tech: line (e.g. tech: TurnView.swift) so a human can audit every tick; if you cannot find evidence, leave it unchecked and say so in the decisions note. Statuses must be honest — [x] only for what verifiably exists, [~] only for what you are working on right now, everything else [ ]. Tag open tasks with an indented from: line naming provenance — from: agent when an in-progress build/handoff doc or your own declared intent claims it imminently, from: roadmap when sourced only from planning docs; omit when unsure. Record the backfill under ## decisions.')
 }
 
+// our relay is the exact `node "<…>/agenttrail.mjs" hook` command written below; matching the
+// bare word "agenttrail" would also match Kitchen's relay (agenttrail-kitchen) and skip our install
+function hasMapHook(groups) {
+  return Array.isArray(groups) && groups.some(g => Array.isArray(g?.hooks) && g.hooks.some(h => /agenttrail\.mjs"? hook$/.test(h?.command)))
+}
+
 // merge our hook relay into the repo's .claude/settings.json so Claude Code
 // sessions stream tool calls + todos to the board. Additive and idempotent.
 function installHooks() {
@@ -760,7 +767,7 @@ function installHooks() {
   let added = 0
   for (const ev of ['PreToolUse', 'PostToolUse', 'Stop', 'SessionStart', 'SubagentStop']) {
     const list = cfg.hooks[ev] = cfg.hooks[ev] || []
-    const present = JSON.stringify(list).includes('agenttrail')
+    const present = hasMapHook(list)
     if (!present) { list.push({ matcher: '*', hooks: [{ type: 'command', command: cmd }] }); added++ }
   }
   if (added) {
