@@ -176,8 +176,8 @@ links: [plan-reader, runs, map]
   tech: Projects.enrich currently lets a newer general Map event replace a confirmed native task list with empty board todos and withdraw its dishes.
 - [ ] Confirm plan updates before serving completed dishes {#kitchen-plan-acknowledgements}
   tech: wait for successful Codex update_plan and legacy TodoWrite results; failed or interrupted calls must retain the last confirmed plan.
-- [ ] Check every incoming feed event against a published schema {#kitchen-feed-schema}
-  from: agent
+- [x] Check every incoming feed event against a published schema {#kitchen-feed-schema}
+  by: claude
   tech: JSON Schema for the hook event and snapshot v2 under packages/kitchen, plus a small built-in validator that rejects unknown fields; no new dependency (ATL-2).
 - [ ] Run the kitchen with no filesystem reading at all {#kitchen-feed-server}
   from: agent
