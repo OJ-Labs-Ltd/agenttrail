@@ -8,7 +8,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import os from 'node:os'
 import crypto from 'node:crypto'
-import { allowHook, relativePath, titleText } from '../packages/kitchen/src/runtime/payload-allowlist.mjs'
+import { allowHook, pathText, relativePath, titleText } from '../packages/kitchen/src/runtime/payload-allowlist.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -182,8 +182,9 @@ const clients = new Set()
 const compTouched = {} // component id -> last matching write ts
 const compRecent = {} // component id -> [{file, at}] newest first — feeds capsule work lines
 const fileHeat = {} // file -> last touch ts, capped
+// Callers match components against the real relative path; what is stored and served is its redacted copy.
 function heatFile(file, at) {
-  fileHeat[file] = at
+  fileHeat[pathText(file)] = at
   const keys = Object.keys(fileHeat)
   if (keys.length > 600) { keys.sort((a, b) => fileHeat[a] - fileHeat[b]); for (const k of keys.slice(0, 100)) delete fileHeat[k] }
 }
@@ -201,8 +202,9 @@ function touchComponents(file, at) {
   for (const m of compMatchers) if (m.res.some(re => re.test(file))) {
     compTouched[m.id] = at
     const arr = compRecent[m.id] || (compRecent[m.id] = [])
-    if (arr[0] && arr[0].file === file) arr[0] = { file, at, n: (arr[0].n || 1) + 1 }
-    else arr.unshift({ file, at, n: 1 })
+    const shown = pathText(file)
+    if (arr[0] && arr[0].file === shown) arr[0] = { file: shown, at, n: (arr[0].n || 1) + 1 }
+    else arr.unshift({ file: shown, at, n: 1 })
     if (arr.length > 6) arr.length = 6
   }
 }
@@ -240,7 +242,7 @@ function cleanLoadedRun(r) {
 function relToRepo(p) {
   if (!p) return null
   const r = path.resolve(String(p))
-  return r === repo ? '' : r.startsWith(repo + path.sep) ? titleText(r.slice(repo.length + 1), 300) : null
+  return r === repo ? '' : r.startsWith(repo + path.sep) ? r.slice(repo.length + 1) : null
 }
 function handleHookEvent(rawEvent) {
   const ev = allowHook(rawEvent)
@@ -277,7 +279,7 @@ function handleHookEvent(rawEvent) {
     if (rel) {
       heatFile(rel, Date.now())
       touchComponents(rel, Date.now())
-      activity = { file: rel, at: Date.now() }
+      activity = { file: pathText(rel), at: Date.now() }
       for (const m of compMatchers) if (m.res.some(re => re.test(rel))) {
         if (run.componentId !== m.id) {
           (run.path = run.path || []).push({ c: m.id, at: Date.now() })
@@ -318,13 +320,14 @@ let stateDirty = false
 function loadState() {
   try {
     const st = JSON.parse(fs.readFileSync(stateFile, 'utf8'))
-    activity = st.activity || null
-    recentActivity = st.recentActivity || []
+    const cleanFile = entry => entry && { ...entry, file: pathText(String(entry.file ?? '')) }
+    activity = cleanFile(st.activity) || null
+    recentActivity = (Array.isArray(st.recentActivity) ? st.recentActivity : []).map(cleanFile)
     for (const [id, r] of Object.entries(st.runs || {})) runs[id] = cleanLoadedRun(r)
     cycles = st.cycles || []
     Object.assign(compTouched, st.compTouched || {})
-    Object.assign(compRecent, st.compRecent || {})
-    Object.assign(fileHeat, st.fileHeat || {})
+    for (const [id, list] of Object.entries(st.compRecent || {})) compRecent[id] = (Array.isArray(list) ? list : []).map(cleanFile)
+    for (const [file, at] of Object.entries(st.fileHeat || {})) fileHeat[pathText(file)] = at
   } catch {}
 }
 function saveState() {
@@ -361,11 +364,14 @@ function buildTree(rootDir, budgetN = 4000, perDir = 250) {
       if (IGNORE.test(r) || TMP_FILE.test(r)) continue
       if (taken >= perDir || budget <= 0) { treeTruncated = true; break }
       taken++; budget--
+      // Recursion keeps the real names; the served tree carries redacted ones, so a file named like a key
+      // is shown as [redacted] (and a component glob cannot match it by that name).
+      const shown = { name: pathText(e.name), path: pathText(r) }
       if (e.isDirectory()) {
-        const node = { name: e.name, path: r, dir: true, children: [] }
+        const node = { ...shown, dir: true, children: [] }
         out.push(node)
         queue.push({ dir: path.join(dir, e.name), rel: r, depth: depth + 1, out: node.children })
-      } else if (e.isFile()) out.push({ name: e.name, path: r, dir: false })
+      } else if (e.isFile()) out.push({ ...shown, dir: false })
     }
     out.sort((a, b) => (b.dir - a.dir) || a.name.localeCompare(b.name))
   }
@@ -471,10 +477,10 @@ try {
     // plain repo churn → liveness signal
     treeDirty = true
     stateDirty = true
-    activity = { file: f, at: Date.now() }
+    activity = { file: pathText(f), at: Date.now() }
     heatFile(f, activity.at)
     touchComponents(f, activity.at)
-    if (!recentActivity.length || recentActivity[0].file !== f) recentActivity.unshift(activity)
+    if (!recentActivity.length || recentActivity[0].file !== activity.file) recentActivity.unshift(activity)
     else recentActivity[0] = activity
     recentActivity = recentActivity.slice(0, 12)
     throttleBroadcast()

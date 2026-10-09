@@ -110,3 +110,68 @@ test('Map live endpoints and saved state carry no command, key, prompt or absolu
   assert.equal(legacy.recentTools[0].detail,'');
   assert.match(legacy.todos[0].content,/\[redacted\]/);
 });
+
+async function untilModel(base,ready){
+  const controller=new AbortController();
+  const response=await fetch(`${base}/events`,{signal:controller.signal});
+  const decoder=new TextDecoder();
+  let buffered='',done=false;
+  for await(const chunk of response.body){
+    buffered+=decoder.decode(chunk,{stream:true});
+    const messages=buffered.split('\n\n');
+    buffered=messages.pop();
+    done=messages.some(message=>{
+      const data=message.split('\n').find(line=>line.startsWith('data:'));
+      return data&&ready(JSON.parse(data.slice(5)));
+    });
+    if(done)break;
+  }
+  controller.abort();
+}
+
+test('Map file-watcher names and old saved activity carry no key',{timeout:20000},async t=>{
+  const repo=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'map-watch-repo-')));
+  const home=fs.mkdtempSync(path.join(os.tmpdir(),'map-watch-home-'));
+  t.after(()=>{fs.rmSync(repo,{recursive:true,force:true});fs.rmSync(home,{recursive:true,force:true});});
+  const legacyFile=`old/${PATH_KEY}/y.js`;
+  fs.mkdirSync(path.join(home,'.agenttrail'));
+  fs.writeFileSync(stateFileFor(home,repo),JSON.stringify({
+    repoPath:repo,port:5399,activity:{file:legacyFile,at:1},recentActivity:[{file:legacyFile,at:1}],compTouched:{},compRecent:{},fileHeat:{[legacyFile]:1},runs:{},cycles:[],
+  }));
+
+  // The directory exists before the Map starts so only the file write reaches the watcher: pushes are throttled to one a second.
+  fs.mkdirSync(path.join(repo,'secrets',PATH_KEY),{recursive:true});
+  const {base,child,exited}=await startMap(t,repo,home);
+  const watched=untilModel(base,model=>model.activity?.file?.endsWith('x.js'));
+  fs.writeFileSync(path.join(repo,'secrets',PATH_KEY,'x.js'),'1');
+  await watched;
+
+  const bodies={'/model':await (await fetch(base+'/model')).text(),'/events':await firstEventsMessage(base)};
+  child.kill('SIGTERM');
+  await exited;
+  const { repoPath, ...saved }=JSON.parse(fs.readFileSync(stateFileFor(home,repo),'utf8'));
+  bodies['saved state']=JSON.stringify(saved);
+  for(const [where,text] of Object.entries(bodies)){
+    assert.ok(!text.includes(PATH_KEY),`${PATH_KEY} leaked into ${where}`);
+    assert.match(text,/secrets\/\[redacted\]\/x\.js/,`watcher file is still shown, redacted, in ${where}`);
+  }
+});
+
+test('Map still attributes a CamelCase file to its component',async t=>{
+  const repo=fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(),'map-camel-repo-')));
+  const home=fs.mkdtempSync(path.join(os.tmpdir(),'map-camel-home-'));
+  t.after(()=>{fs.rmSync(repo,{recursive:true,force:true});fs.rmSync(home,{recursive:true,force:true});});
+  fs.writeFileSync(path.join(repo,'PLAN.md'),'# Demo\n\n## Settings screen {#settings}\nfiles: [src/components/**]\n- [ ] Style the panel {#panel}\n');
+
+  const {base,child,exited}=await startMap(t,repo,home);
+  const file='src/components/UserProfile/SettingsPanel.tsx';
+  await post(base,{hook_event_name:'PostToolUse',session_id:'camel',cwd:repo,tool_name:'Edit',tool_input:{file_path:path.join(repo,file)}});
+  const model=await (await fetch(base+'/model')).json();
+  child.kill('SIGTERM');
+  await exited;
+
+  const run=model.runs.find(r=>r.id==='camel');
+  assert.equal(run.componentId,'settings');
+  assert.equal(run.recentTools[0].detail,file);
+  assert.equal(model.activity.file,file);
+});

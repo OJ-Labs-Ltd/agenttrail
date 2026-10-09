@@ -108,6 +108,14 @@ test('relativePath redacts a secret carried in the path',()=>{
   assert.equal(relativePath(`/work/project/${CANARIES['sk-']}.txt`,['/work/project']),'[redacted].txt');
 });
 
+test('relativePath leaves CamelCase and Java-style paths intact',()=>{
+  const roots=['/work/project'];
+  for(const file of ['src/components/UserProfile/SettingsPanel.tsx','src/main/java/com/example/UserService.java']){
+    assert.equal(relativePath(file,roots),file);
+    assert.equal(relativePath(`/work/project/${file}`,roots),file);
+  }
+});
+
 test('titleText flattens control characters, caps length and redacts secrets',()=>{
   assert.equal(titleText('Line one\nline\ttwo\u0007'),'Line one line two');
   assert.ok(titleText('word '.repeat(200)).length<=180);
@@ -120,6 +128,12 @@ test('scrubSnapshot swaps roots for handles in values and keys and keeps similar
   assert.match(one,/^[0-9a-f]{12}$/);assert.notEqual(one,two);
   const out=scrubSnapshot({id:'/work/project',installed:{'/work/project-two':{claude:true}},order:'order:/work/project-two:7',file:'/work/project/src/a.js'},{roots,home:'/home/me'});
   assert.deepEqual(out,{id:one,installed:{[two]:{claude:true}},order:`order:${two}:7`,file:`${one}/src/a.js`});
+});
+test('scrubSnapshot keeps CamelCase paths in path fields and still redacts a key inside one',()=>{
+  const file='src/components/UserProfile/SettingsPanel.tsx';
+  const out=scrubSnapshot({file,currentFile:file,sessions:[{file,files:[file]}],leaked:{file:`secrets/${'sk-ant-'+'api03-PATHKEYFAKE12345678'}/x.js`}},{roots:['/work/project'],home:'/home/me'});
+  assert.deepEqual([out.file,out.currentFile,out.sessions[0].file,out.sessions[0].files[0]],[file,file,file,file]);
+  assert.equal(out.leaked.file,'secrets/[redacted]/x.js');
 });
 test('scrubSnapshot makes cwd project-relative and reduces stray absolute paths and secrets',()=>{
   const {cwd,log,note,list,plain}=scrubSnapshot({cwd:'/work/project/pkg',log:'/home/me/.codex/log.jsonl',note:'saw /etc/passwd and /home/me/notes while using sk-'+'abcdefgh12345678',list:[{cwd:'/work/project'},'/var/tmp/secret/key.txt'],plain:'src/a.js http://127.0.0.1:4780 a/b'},{roots:['/work/project'],home:'/home/me'});

@@ -96,10 +96,15 @@ function looksRandom(run){
   return [/[a-z]/,/[A-Z]/,/\d/].filter(shape=>shape.test(run)).length>=2;
 }
 
-export const redactSecrets=text=>typeof text==='string'?text.replace(TOKEN_SHAPES,'[redacted]').replace(LONG_RUN,run=>looksRandom(run)?'[redacted]':run):'';
+// Paths get the prefix and shape patterns only: the long-run heuristic reads a CamelCase path such as
+// src/components/UserProfile/SettingsPanel.tsx as random and would break component matching.
+const redactShapes=text=>typeof text==='string'?text.replace(TOKEN_SHAPES,'[redacted]'):'';
+export const redactSecrets=text=>redactShapes(text).replace(LONG_RUN,run=>looksRandom(run)?'[redacted]':run);
 
 // Redact before capping so a cut cannot leave a recognisable token prefix behind.
-export const titleText=(text,max=180)=>redactSecrets(clean(text,2000).replace(/[\s\x7f-\x9f]+/g,' ').trim()).slice(0,max);
+const flatten=text=>clean(text,2000).replace(/[\s\x7f-\x9f]+/g,' ').trim();
+export const titleText=(text,max=180)=>redactSecrets(flatten(text)).slice(0,max);
+export const pathText=(text,max=300)=>redactShapes(flatten(text)).slice(0,max);
 
 const slashed=file=>file.replace(/\\/g,'/');
 const isAbsolute=file=>/^(?:\/|[A-Za-z]:(?:\/|$))/.test(file);
@@ -109,16 +114,17 @@ export function relativePath(file,roots=[]){
   const normal=path.posix.normalize(slashed(file));
   for(const root of roots){
     const base=path.posix.normalize(slashed(root)).replace(/\/$/,'');
-    if(normal.startsWith(base+'/'))return titleText(normal.slice(base.length+1),300);
+    if(normal.startsWith(base+'/'))return pathText(normal.slice(base.length+1));
   }
-  if(!isAbsolute(normal)&&normal!=='..'&&!normal.startsWith('../'))return titleText(normal,300);
+  if(!isAbsolute(normal)&&normal!=='..'&&!normal.startsWith('../'))return pathText(normal);
   const name=path.posix.basename(normal);
-  return titleText(name&&!/^[A-Za-z]:$/.test(name)?name:'[path]',300);
+  return pathText(name&&!/^[A-Za-z]:$/.test(name)?name:'[path]');
 }
 
 // Opaque stand-in for a watched root: the browser can select and name a project without learning where it lives.
 export const projectHandle=root=>crypto.createHash('sha256').update(root).digest('hex').slice(0,12);
 
+const PATH_KEYS=new Set(['file','currentFile','files']);
 const STRAY_PATH=/(?<![\w.~:/-])\/(?:[^\s/"'`]+\/)+[^\s/"'`]*/g;
 const escapeRegExp=text=>text.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 
@@ -128,13 +134,13 @@ export function scrubSnapshot(snapshot,{roots,home}){
   const bases=[...roots].sort((a,b)=>b.length-a.length);
   const swaps=[...bases.map(root=>[root,projectHandle(root)]),...(home?[[home,'~']]:[])].map(([from,to])=>[new RegExp(escapeRegExp(from)+'(?![\\w.-])','g'),to]);
   const relativeCwd=cwd=>{for(const root of bases){if(cwd===root)return '.';if(cwd.startsWith(root+'/'))return cwd.slice(root.length+1);}return null;};
-  const leaf=text=>{
+  const leaf=(text,redact=redactSecrets)=>{
     const swapped=swaps.reduce((out,[pattern,to])=>out.replace(pattern,to),text);
-    return redactSecrets(isAbsolute(swapped)?relativePath(swapped):swapped.replace(STRAY_PATH,stray=>path.posix.basename(stray)||'[path]'));
+    return redact(isAbsolute(swapped)?relativePath(swapped):swapped.replace(STRAY_PATH,stray=>path.posix.basename(stray)||'[path]'));
   };
   const walk=(value,key)=>{
-    if(typeof value==='string')return key==='cwd'&&relativeCwd(value)||leaf(value);
-    if(Array.isArray(value))return value.map(item=>walk(item));
+    if(typeof value==='string')return key==='cwd'&&relativeCwd(value)||leaf(value,PATH_KEYS.has(key)?redactShapes:redactSecrets);
+    if(Array.isArray(value))return value.map(item=>walk(item,key));
     if(isRecord(value))return Object.fromEntries(Object.entries(value).map(([field,item])=>[leaf(field),walk(item,field)]));
     return value;
   };

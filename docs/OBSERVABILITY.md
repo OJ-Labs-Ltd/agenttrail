@@ -76,8 +76,9 @@ Both services share one allowlist, `packages/kitchen/src/runtime/payload-allowli
 
 Three rules apply on top of the field lists:
 
-- **Paths are project-relative.** An absolute path under a watched project becomes a path relative to it; a path outside every project is reduced to its file name. Kitchen identifies each project by an opaque handle (a short hash of its root), so the browser can select and name a project without learning where it lives.
-- **Token-like strings are redacted.** Common key prefixes, bearer tokens, JSON web tokens, private-key blocks and long random-looking strings are replaced with `[redacted]`, wherever they appear. The check is a character-class heuristic, so it can redact a long identifier that is not a secret.
+- **Paths are project-relative.** An absolute path under a watched project becomes a path relative to it; a path outside every project is reduced to its file name. Kitchen identifies each project by an opaque handle (a short hash of its root), so the browser can select and name a project without learning where it lives. The `?project=` value in a Kitchen link is that handle, not a path; a link or saved selection that still carries an absolute path no longer matches and falls back to the first project.
+- **Token-like strings are redacted.** Common key prefixes, bearer tokens, JSON web tokens, private-key blocks and long random-looking strings are replaced with `[redacted]`, wherever they appear. The check is a character-class heuristic, so it can redact a long identifier that is not a secret. File paths get only the prefix and shape patterns, not the long-string check, so a CamelCase path such as `src/components/UserProfile/SettingsPanel.tsx` is shown whole and still matches its component. A file name made of random characters with no known prefix therefore shows as written.
+- **Stray paths in free text lose their folders.** A path-like word in a title, such as `/api/users`, is cut down to its last segment (`users`) so a title cannot carry a directory outside the watched projects.
 - **Free text is capped.** Task titles, todo text and file paths are flattened to one line, redacted and cut to a fixed length.
 
 ### Kitchen: fields per event kind
@@ -106,7 +107,7 @@ Map accepts six Claude Code hooks. Each carries `hook_event_name`, `session_id`,
 | `SessionStart`, `SessionEnd`, `Stop`, `SubagentStop` | none |
 | `PreToolUse`, `PostToolUse` | `tool_name`; `tool_input` reduced to `file_path`, `notebook_path` and `todos` (`content`, `status`) |
 
-The Map shows a project-relative file path for a tool call that names one and no detail otherwise, so a shell command, search term, URL or prompt is never displayed. A sub-agent appears as a generic `sub-agent` row, because its description is a prompt. Run state saved under `~/.agenttrail` is built from the same fields, and a state file written by an older version is cleaned the same way when it is loaded.
+The Map shows a project-relative file path for a tool call that names one and no detail otherwise, so a shell command, search term, URL or prompt is never displayed. A sub-agent appears as a generic `sub-agent` row, because its description is a prompt. Run state saved under `~/.agenttrail` is built from the same fields, and a state file written by an older version is cleaned the same way when it is loaded. File names the Map sees changing, its hot-file list and its file tree get the same path redaction, so a file named like a key appears as `[redacted]`.
 
 ### What can still be visible
 
