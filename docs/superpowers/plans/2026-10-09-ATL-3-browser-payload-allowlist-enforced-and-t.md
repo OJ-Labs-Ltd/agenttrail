@@ -87,7 +87,8 @@ Standards touched: TST-1, TST-4, TST-5, TST-6, SEC-1, SEC-12
   - Commit: `7d2b9254dfc6`
   - Commit: `3e06e867a0e1`
 
-- [ ] **Task 5: Apply the allowlist to the Map's hook events, saved state and live model** (after 1)
+- [x] **Task 5: Apply the allowlist to the Map's hook events, saved state and live model** (after 1)
+  - Commit: `ae55272bf584`
   - Intent: In bin/agenttrail.mjs, import allowHook, redactSecrets, relativePath and titleText from ../packages/kitchen/src/runtime/payload-allowlist.mjs (zero deps, same file Kitchen uses). In handleHookEvent, run the raw hook through allowHook first. Change toolDetail so only a project-relative file path is kept for file tools, and the shell command, description, pattern, url, query and prompt are never read; show just the tool name otherwise. The Task sub-agent name currently comes from tool_input.description (a prompt), so use a fixed label ('sub-agent') instead. run.todos content goes through titleText. run.cwd becomes the project-relative form ('' or a subdirectory), not the absolute path, with the root-containment check done before sanitising. loadState passes loaded runs, recentTools and todos through the same sanitiser so files already on disk from older versions are cleaned on the next save. model(), the tick, SSE and the ~/.agenttrail/<hash>.json outputs then inherit the cleaned data with no extra code. Add the shared module to the root package.json 'files' list so the published Map package ships it (root files are currently bin, public, docs/demo.gif). Do not change /whoami, /suggest or /spawn (see out_of_scope).
 Standards touched: COD-3, COD-8, SEC-1, SEC-9, SEC-11, SEC-12, SEC-13
   - Files: `bin/agenttrail.mjs`, `package.json`
