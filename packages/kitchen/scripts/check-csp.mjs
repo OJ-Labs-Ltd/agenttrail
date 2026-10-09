@@ -30,8 +30,10 @@ function connect(child){
       else listeners.forEach(listener=>listener(message));
     }
   });
+  // A crashed browser never answers, so fail fast instead of hanging until the CI timeout.
+  child.once('exit',()=>pending.forEach(({reject})=>reject(new Error('Chromium exited before answering.'))));
   return {
-    send:(method,params={},sessionId)=>new Promise((resolve,reject)=>{const id=++nextId;pending.set(id,{resolve,reject});input.write(JSON.stringify({id,method,params,sessionId})+'\0');}),
+    send:(method,params={},sessionId)=>new Promise((resolve,reject)=>{if(child.exitCode!==null)return reject(new Error('Chromium exited before answering.'));const id=++nextId;pending.set(id,{resolve,reject});input.write(JSON.stringify({id,method,params,sessionId})+'\0');}),
     on:listener=>listeners.push(listener),
   };
 }
@@ -67,7 +69,9 @@ try{
   if(notice.startsWith('3D graphics could not start'))problems.push('Scene did not start: '+notice);
   problems.push(...violations.map(violation=>'CSP violation: '+violation));
 }finally{
-  browser.kill();await office.close();await fs.rm(home,{recursive:true,force:true});
+  // Wait for exit: removing the profile while Chromium is still writing to it fails with ENOTEMPTY.
+  const exited=browser.exitCode===null?new Promise(resolve=>browser.once('exit',resolve)):null;
+  browser.kill();await exited;await office.close();await fs.rm(home,{recursive:true,force:true});
 }
 if(problems.length){console.error(problems.join('\n'));process.exit(1);}
 console.log('Kitchen rendered under script-src \'self\' with no violations and no outside requests.');
