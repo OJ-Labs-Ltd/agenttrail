@@ -34,6 +34,7 @@
     "test": "node --test --test-concurrency=1",
     "check": "node --check bin/office.mjs && node --check src/server.mjs",
     "build": "node scripts/build.mjs",
+    "check:csp": "node scripts/check-csp.mjs",
     "prepack": "npm run build"
   },
   "engines": {
@@ -41,7 +42,7 @@
   },
   "devDependencies": {
     "three": "0.186.0",
-    "@fontsource/nunito": "^5.2.7",
+    "@fontsource/nunito": "5.2.7",
     "esbuild": "0.25.12"
   }
 }

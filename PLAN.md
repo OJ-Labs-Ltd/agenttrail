@@ -230,6 +230,10 @@ links: [plan-reader, runs, map]
   from: agent
   tech: downloaded the exact public alpha.2 archive without GitHub credentials, matched its checksum, launched with a fresh npm cache, and observed this real working repo in the browser. All 71 tests pass. Expanded the package check to verify fresh logs over SSE, one session contributing through multiple chefs, native dish completion, and file observation; the public archive passes it.
 
+- [x] Build the Kitchen the same way every time and prove it runs under a strict script policy {#kitchen-csp-build}
+  by: claude
+  tech: build/font/lock pins and byte-identical rebuilds are tested; scripts/check-csp.mjs loads the build in headless Chromium under the server's real CSP with non-127.0.0.1 blocked and fails on any violation; new `csp` CI job.
+
 ## Ship to GitHub and npm {#ship}
 needs: [map, explorer]
 files: [README.md, docs/**, package.json, CONTRIBUTING.md, examples/**, .github/**]
