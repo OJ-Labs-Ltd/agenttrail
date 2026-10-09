@@ -131,3 +131,7 @@ Standards touched: COD-7, SEC-1, SEC-13, GIT-1, GIT-8
 - [x] **Task 8: Fix: address 13 review findings (cycle 1)** (after 7)
   - Intent: Review left 13 findings unresolved (NEEDS_WORK): **correctness** — NEEDS_WORK The allowlist, hook filtering, handle round-trip and hostile-event tests work as designed. One correctness defect remains. The secret redactor treats ordinary CamelCase fi The agent is fixing them; nothing is needed from you.
   - Commit: `f1a5beafeea4`
+
+- [x] **Task 9: Fix: address 11 review findings (cycle 2)** (after 8)
+  - Intent: Review left 11 findings unresolved (NEEDS_WORK): **correctness** — NEEDS_WORK Allowlist, hook filtering, handle round-trip, watcher redaction and hostile-event tests work as intended, and the cycle-1 findings are fixed. One regression remains: allow The agent is fixing them; nothing is needed from you.
+  - Commit: `713b98bd41d3`
