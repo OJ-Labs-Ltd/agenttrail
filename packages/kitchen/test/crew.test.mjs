@@ -72,7 +72,8 @@ test('current files follow active parallel tools while the last touched file rem
 });
 test('Codex structured plan steps and patch headers expose useful metadata without patch bodies',()=>{
  const meta={id:'thread',cwd:'/work/project'},base={type:'response_item',timestamp:new Date(now).toISOString()};
- const plan=codexEvents({...base,payload:{type:'function_call',call_id:'p',name:'update_plan',arguments:JSON.stringify({explanation:'PRIVATE EXPLANATION',plan:[{step:'Connect goal cards',status:'in_progress'}]})}},meta,'log')[0];
+ codexEvents({...base,payload:{type:'function_call',call_id:'p',name:'update_plan',arguments:JSON.stringify({explanation:'PRIVATE EXPLANATION',plan:[{step:'Connect goal cards',status:'in_progress'}]})}},meta,'log');
+ const plan=codexEvents({...base,payload:{type:'function_call_output',call_id:'p',output:'Plan updated'}},meta,'log')[0];
  assert.equal(plan.tasks[0].title,'Connect goal cards');assert.ok(!JSON.stringify(plan).includes('PRIVATE'));
  const patch=codexEvents({...base,payload:{type:'custom_tool_call',call_id:'patch',name:'apply_patch',input:'*** Begin Patch\n*** Update File: public/app.js\n@@\n+PRIVATE BODY\n*** End Patch'}},meta,'log')[0];
  assert.equal(patch.file,'public/app.js');assert.ok(!JSON.stringify(patch).includes('PRIVATE'));

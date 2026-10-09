@@ -47,6 +47,12 @@ export function normalizeHook(provider, raw, at=Date.now()) {
   return {provider,sessionId:clean(sessionId,200),parentId:child?clean(parent,200):null,cwd,at,source:'hook',kind:kind||notification,turnId:raw.generation_id || raw.turn_id,toolId:raw.tool_use_id || raw.tool_call_id,tool:clean(raw.tool_name || (key==='afterfileedit'?'Write':['beforefileread','beforereadfile'].includes(key)?'Read':['beforeshellexecution','aftershellexecution'].includes(key)?'Shell':''),80),file:clean(raw.tool_input?.file_path || raw.tool_input?.path || raw.file_path,500),...(key==='posttooluse'&&!['error','failed'].includes(raw.status)?taskResult(raw.tool_name,raw.tool_input,raw.tool_response??raw.tool_output):{}),error:key==='posttoolusefailure'||raw.status==='error'||raw.status==='failed',id:clean(raw.office_event_id,200)};
 }
 
+// Codex answers an accepted update_plan with "Plan updated"; parse errors and rejections say anything else, so they keep the last confirmed plan.
+function planAcknowledged(output){
+  if(typeof output==='string'&&output.startsWith('{')){try{output=JSON.parse(output).output;}catch{}}
+  return typeof output==='string'&&/^Plan updated\b/.test(output.trim());
+}
+
 export function codexEvents(row, meta, fileId) {
   const p=row.payload || {}, at=Date.parse(row.timestamp), id=`${fileId}:${row.ordinal ?? row.timestamp}:${p.type||row.type}:${p.id||p.call_id||''}`;
   if(row.type==='event_msg'&&p.type==='task_started')meta.turnId=p.turn_id;
@@ -65,9 +71,13 @@ export function codexEvents(row, meta, fileId) {
     if(['function_call','custom_tool_call'].includes(p.type)) {
       let args={}; try {args=JSON.parse(p.arguments || '{}');}catch{}
       const patchFiles=typeof p.input==='string'&&/apply_patch$/.test(p.name||'')?[...p.input.matchAll(/^\*\*\* (?:Update|Add|Delete) File: (.+)$/gm)].map(m=>m[1]):[];
-      return [{...base,kind:'tool-start',tool:p.name,toolId:p.call_id,work:directWork(p.name,p.namespace),file:args.file_path || args.path || (patchFiles.length===1?patchFiles[0]:undefined),tasks:/update_plan$/.test(p.name||'')?taskList(args.plan):undefined}];
+      if(/update_plan$/.test(p.name||'')){(meta.pendingPlans||=new Map()).set(p.call_id,taskList(args.plan));if(meta.pendingPlans.size>64)meta.pendingPlans.delete(meta.pendingPlans.keys().next().value);}
+      return [{...base,kind:'tool-start',tool:p.name,toolId:p.call_id,work:directWork(p.name,p.namespace),file:args.file_path || args.path || (patchFiles.length===1?patchFiles[0]:undefined)}];
     }
-    if(['function_call_output','custom_tool_call_output'].includes(p.type)) return [{...base,kind:'tool-end',toolId:p.call_id}];
+    if(['function_call_output','custom_tool_call_output'].includes(p.type)) {
+      const plan=meta.pendingPlans?.get(p.call_id);meta.pendingPlans?.delete(p.call_id);
+      return [{...base,kind:'tool-end',toolId:p.call_id,...(plan&&planAcknowledged(p.output)?{tasks:plan}:{})}];
+    }
   }
   return [];
 }
@@ -83,8 +93,8 @@ export function claudeEvents(row,fileId,context={pending:new Map()}) {
   const events=[];
   content.forEach((c,i)=>{
     const e={...base,id:`${base.id}:${i}`};
-    if(c.type==='tool_use') events.push({...e,kind:'tool-start',tool:c.name,toolId:c.id,file:c.input?.file_path || c.input?.path,tasks:c.name==='TodoWrite'?taskList(c.input?.todos):undefined});
-    if(c.type==='tool_use'&&['TaskCreate','TaskUpdate','TaskGet','TaskList'].includes(c.name)){context.pending.set(c.id,{name:c.name,input:{taskId:c.input?.taskId,subject:clean(c.input?.subject,180),status:c.input?.status}});if(context.pending.size>64)context.pending.delete(context.pending.keys().next().value);}
+    if(c.type==='tool_use') events.push({...e,kind:'tool-start',tool:c.name,toolId:c.id,file:c.input?.file_path || c.input?.path});
+    if(c.type==='tool_use'&&['TodoWrite','TaskCreate','TaskUpdate','TaskGet','TaskList'].includes(c.name)){context.pending.set(c.id,{name:c.name,input:{taskId:c.input?.taskId,subject:clean(c.input?.subject,180),status:c.input?.status,todos:c.input?.todos,merge:c.input?.merge}});if(context.pending.size>64)context.pending.delete(context.pending.keys().next().value);}
     if(c.type==='tool_result'){const pending=context.pending.get(c.tool_use_id);context.pending.delete(c.tool_use_id);events.push({...e,kind:'tool-end',toolId:c.tool_use_id,error:!!c.is_error,...(pending&&!c.is_error?taskResult(pending.name,pending.input,c.content):{})});}
   });
   if(row.type==='user' && content.some(c=>c.type==='text') && !content.some(c=>c.type==='tool_result')) events.push({...base,kind:'turn-start'});
