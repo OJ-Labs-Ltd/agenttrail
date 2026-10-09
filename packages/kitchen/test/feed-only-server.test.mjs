@@ -53,7 +53,7 @@ test('feed-only serves only the documented routes, no csrf token, and touches no
 });
 test('feed-only Projects seeds one record per root without touching the filesystem',async()=>{
   const missing=path.join(os.tmpdir(),'orbit-feed-missing-root');
-  const projects=new Projects([missing],'/nonexistent-home',new CrewStore([missing]),true);
+  const projects=new Projects([missing],'/nonexistent-home',new CrewStore([missing]),{feedOnly:true});
   await projects.poll();
   const [project]=projects.snapshot();
   assert.deepEqual([project.id,project.components,project.workflow,project.contextSource,project.watchStatus],[missing,[],null,'feed','feed']);

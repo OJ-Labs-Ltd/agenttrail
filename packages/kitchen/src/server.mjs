@@ -18,12 +18,13 @@ const hash=s=>crypto.createHash('sha256').update(s).digest('hex');
 // Feed-only mode: no log discovery, file watching or state directory; the only inputs are token-gated, schema-validated POSTs.
 const feedPaths=['/api/hook','/api/artifact','/api/bootstrap','/api/state','/api/events'];
 export const feedTokenMinimum=16;
-export async function startOffice({roots,home,stateDir,port=4780,observe=true,feedOnly=false,feedToken}) {
+export const SOURCES=['hooks','logs','files'];
+export async function startOffice({roots,aliases=[...roots],home,stateDir,port=4780,observe=true,sources=SOURCES,discovery=true,feedOnly=false,feedToken}) {
   if(feedOnly&&!(typeof feedToken==='string'&&feedToken.length>=feedTokenMinimum))throw new Error(`Feed-only mode needs a feed token of at least ${feedTokenMinimum} characters.`);
   if(!feedOnly)await fs.mkdir(stateDir,{recursive:true,mode:0o700});
   const csrf=crypto.randomBytes(24).toString('hex'),hookToken=feedOnly?feedToken:crypto.randomBytes(24).toString('hex');
   const authorised=req=>crypto.timingSafeEqual(Buffer.from(hash(req.headers.authorization||'')),Buffer.from(hash(`Bearer ${hookToken}`)));
-  const store=new CrewStore(roots),logs=feedOnly?null:new LogObserver(home,store,home===os.homedir()?{codexHome:process.env.CODEX_HOME||undefined,claudeHome:process.env.CLAUDE_CONFIG_DIR||undefined}:{}),projects=new Projects(roots,home,store,feedOnly);
+  const store=new CrewStore(roots),logs=feedOnly?null:new LogObserver(home,store,{discovery,aliases,...(home===os.homedir()?{codexHome:process.env.CODEX_HOME||undefined,claudeHome:process.env.CLAUDE_CONFIG_DIR||undefined}:{})}),projects=new Projects(roots,home,store,{discovery,watchFiles:sources.includes('files'),feedOnly});
   const orders=new OrderStore(),plates=new PlateStore(store,Date.now,id=>orders.orders.get(id));
   store.onChange=s=>{if(s)orders.observe(projects.snapshot(),projects.enrich([s]));};
   let actualPort=port,closing=false,busy=false,lastProjects=0,lastMessage='';const clients=new Set();
@@ -36,15 +37,15 @@ export async function startOffice({roots,home,stateDir,port=4780,observe=true,fe
   const snapshot=()=>{const maps=projects.snapshot(),executors=projects.enrich(store.snapshot()),ledger=plates.snapshot();return {app:'agenttrail-kitchen',version:2,recentProjects:logView.recentProjects,discoveryLimited:logView.limited,projects:maps,crew:workflowCrew(maps,executors),executors,...orders.snapshot(maps,executors),...ledger,artifacts:[...ledger.artifacts,...workflowPlates(maps)],installed,observers:{codex:{available:logView.available.codex,mode:'experimental logs'},claude:{available:logView.available.claude,mode:'hooks or logs'},cursor:{mode:'hooks'}},observing:observe&&!feedOnly};};
   async function tick(){if(busy||closing)return;busy=true;try{
     if(Date.now()-lastProjects>3000){lastProjects=Date.now();await projects.poll();if(!feedOnly)await refreshInstalled();}
-    if(observe&&logs)await logs.poll();
+    if(observe&&logs&&sources.includes('logs'))await logs.poll();
     const msg=JSON.stringify(snapshot());if(msg!==lastMessage){lastMessage=msg;for(const c of clients){if(c.writableLength>256_000){c.destroy();clients.delete(c);}else c.write(`data: ${msg}\n\n`);}}
   }finally{busy=false;}}
   async function addProjects(paths){
     if(!Array.isArray(paths)||!paths.length||paths.length>12)throw new Error('Choose one or more project folders.');
     const selected=[];
-    for(const value of paths){if(typeof value!=='string'||!path.isAbsolute(value))throw new Error('Use an absolute project folder path.');let root;try{root=await fs.realpath(value);if(!(await fs.stat(root)).isDirectory())throw 0;}catch{throw new Error('That folder could not be found.');}if(!selected.includes(root))selected.push(root);}
+    for(const value of paths){if(typeof value!=='string'||!path.isAbsolute(value))throw new Error('Use an absolute project folder path.');let root;try{root=await fs.realpath(value);if(!(await fs.stat(root)).isDirectory())throw 0;}catch{throw new Error('That folder could not be found.');}if(!selected.includes(root))selected.push(root);if(!aliases.includes(value))aliases.push(value);}
     const next=[...new Set([...roots,...selected])];if(next.length>12)throw new Error('Up to 12 project folders can be watched.');
-    roots.splice(0,roots.length,...next);await fs.writeFile(path.join(stateDir,'projects.json'),JSON.stringify(roots),{mode:0o600});
+    roots.splice(0,roots.length,...next);await fs.writeFile(path.join(stateDir,'projects.json'),JSON.stringify([...new Set([...roots,...aliases])]),{mode:0o600});
     // Replay available recent observations immediately for newly selected roots.
     lastProjects=0;logs.lastDiscovery=0;await projects.poll();await tick();
     return selected;
@@ -67,6 +68,7 @@ export async function startOffice({roots,home,stateDir,port=4780,observe=true,fe
       }
       if(u.pathname==='/api/hook'||u.pathname==='/api/artifact'){
         if(req.method!=='POST'||!authorised(req))return json(res,403,{error:'Invalid connector key.'});
+        if(u.pathname==='/api/hook'&&!sources.includes('hooks'))return json(res,403,{error:'Hook events are switched off for this run.'});
         const event=await body(req);
         const errors=feedOnly?validateFeed(u.pathname==='/api/artifact'?'artifactEvent':'hookEvent',event):[];
         if(errors.length)return json(res,400,{error:'Event does not match the feed schema.',errors});
