@@ -29,9 +29,12 @@ The example is scripted and labeled. Live provider validation should use your ow
 ```sh
 npm run check
 npm test
+npm run check:csp
 npm pack
 node scripts/check-package.mjs ./agenttrail-kitchen-0.1.0-alpha.3.tgz
 ```
+
+`npm run check:csp` needs a built Kitchen and a local Chromium (set `CHROME_BIN` if it is not on your path). It serves the build under the server's Content-Security-Policy with every address except 127.0.0.1 unreachable, and fails on any policy violation, script error, outside request or scene that does not start.
 
 Keep fixtures synthetic, small and focused on a real failure mode. The package smoke check verifies a clean install with no development dependencies or lifecycle scripts, then appends synthetic native logs and checks the live event stream: one session contributes through multiple chefs to one dish, completion reaches its table, and repo file changes are observed. It never uses real home-directory transcripts. Run `node --check bin/agenttrail.mjs` at the repository root for changes touching the existing map daemon, and manually check the relevant view.
 
