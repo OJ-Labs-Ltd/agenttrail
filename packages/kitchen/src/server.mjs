@@ -14,10 +14,11 @@ import { hookConfig,installConfig,commandFor,configPath } from './connectors/set
 
 const appRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const hash=s=>crypto.createHash('sha256').update(s).digest('hex');
-export async function startOffice({roots,home,stateDir,port=4780,observe=true}) {
+export const SOURCES=['hooks','logs','files'];
+export async function startOffice({roots,home,stateDir,port=4780,observe=true,sources=SOURCES,discovery=true}) {
   await fs.mkdir(stateDir,{recursive:true,mode:0o700});
   const csrf=crypto.randomBytes(24).toString('hex'),hookToken=crypto.randomBytes(24).toString('hex');
-  const store=new CrewStore(roots),logs=new LogObserver(home,store,home===os.homedir()?{codexHome:process.env.CODEX_HOME||undefined,claudeHome:process.env.CLAUDE_CONFIG_DIR||undefined}:{}),projects=new Projects(roots,home,store);
+  const store=new CrewStore(roots),logs=new LogObserver(home,store,{discovery,...(home===os.homedir()?{codexHome:process.env.CODEX_HOME||undefined,claudeHome:process.env.CLAUDE_CONFIG_DIR||undefined}:{})}),projects=new Projects(roots,home,store,{discovery,watchFiles:sources.includes('files')});
   const orders=new OrderStore(),plates=new PlateStore(store,Date.now,id=>orders.orders.get(id));
   store.onChange=s=>{if(s)orders.observe(projects.snapshot(),projects.enrich([s]));};
   let actualPort=port,closing=false,busy=false,lastProjects=0,lastMessage='';const clients=new Set();
@@ -29,7 +30,7 @@ export async function startOffice({roots,home,stateDir,port=4780,observe=true}) 
   const snapshot=()=>{const maps=projects.snapshot(),executors=projects.enrich(store.snapshot()),ledger=plates.snapshot();return {app:'agenttrail-kitchen',version:2,recentProjects:logs.recentProjects,discoveryLimited:logs.limited,projects:maps,crew:workflowCrew(maps,executors),executors,...orders.snapshot(maps,executors),...ledger,artifacts:[...ledger.artifacts,...workflowPlates(maps)],installed,observers:{codex:{available:logs.available.codex,mode:'experimental logs'},claude:{available:logs.available.claude,mode:'hooks or logs'},cursor:{mode:'hooks'}},observing:observe};};
   async function tick(){if(busy||closing)return;busy=true;try{
     if(Date.now()-lastProjects>3000){lastProjects=Date.now();await projects.poll();await refreshInstalled();}
-    if(observe)await logs.poll();
+    if(observe&&sources.includes('logs'))await logs.poll();
     const msg=JSON.stringify(snapshot());if(msg!==lastMessage){lastMessage=msg;for(const c of clients){if(c.writableLength>256_000){c.destroy();clients.delete(c);}else c.write(`data: ${msg}\n\n`);}}
   }finally{busy=false;}}
   async function addProjects(paths){
@@ -58,6 +59,7 @@ export async function startOffice({roots,home,stateDir,port=4780,observe=true}) 
       }
       if(u.pathname==='/api/hook'||u.pathname==='/api/artifact'){
         if(req.method!=='POST'||req.headers.authorization!==`Bearer ${hookToken}`)return json(res,403,{error:'Invalid connector key.'});
+        if(!sources.includes('hooks'))return json(res,403,{error:'Hook events are switched off for this run.'});
         const event=await body(req);event.source='hook';event.at=Date.now();
         const accepted=u.pathname==='/api/artifact'?plates.accept(event):store.accept(event);await tick();return json(res,200,{accepted});
       }

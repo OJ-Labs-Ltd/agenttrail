@@ -31,11 +31,20 @@ Codex desktop's structured `item_completed` records supply completed-operation c
 
 ## Local scope and discovery limits
 
-The companion reads a bounded metadata header from recent local Codex/Claude logs to suggest folder names, paths, providers, and last-seen times. Transcript event bodies are processed only after their folder falls within a watched root, and only allowlisted activity/task metadata reaches the browser. No prompts, code bodies, or arbitrary command text are displayed or uploaded. The browser uses bundled local assets.
+Kitchen reads logs only for the folders you watch. A session is used only if its recorded working directory is inside a watched root (the folder you launched with, or any `--project`). Logs for every other project on the machine are not parsed, tracked, counted or listed, and nothing about them reaches the browser. The folder picker therefore suggests only watched projects; to add another, paste its path.
+
+What is touched under your home directory, exactly:
+
+- **Claude (`~/.claude/projects`):** the directory listing is filtered by name, because Claude names each directory after its project path. Only directories matching a watched root are listed further or opened.
+- **Codex (`~/.codex/sessions`):** rollouts are filed by date, not by project, so Kitchen lists the date folders and opens the first 64 KiB of each rollout modified in the last 24 hours to read its recorded working directory. If that directory is not inside a watched root, the header is discarded after the check and the rest of the file is never read. This is the one place another project's file is opened.
+- **Watched sessions:** event bodies are processed, and only allowlisted activity and task metadata reaches the browser. No prompts, code bodies or arbitrary command text are displayed or uploaded. The browser uses bundled local assets.
+- **`~/.agenttrail`:** Kitchen looks up the one Map registry file belonging to each watched root, to read that board's context. It does not list the directory.
+
+Two switches narrow this further. `--sources hooks,logs,files` chooses which evidence is used (default: all three). `hooks` accepts events from installed provider hooks, `logs` reads the scoped logs above, and `files` watches file changes inside watched roots. `--no-discovery` turns off the home-directory scan entirely: no log directory, and no `~/.agenttrail` file, is listed, opened or counted, so only hooks and file changes in watched roots remain. Both flags apply when Kitchen starts; attaching a folder to an already running Kitchen keeps that instance's settings.
 
 Default stores are `~/.codex/sessions` and `~/.claude/projects`; the production observer also honors `CODEX_HOME` and `CLAUDE_CONFIG_DIR`. Remote/cloud sessions whose logs are not on this machine are not automatically visible.
 
-Discovery refreshes about every five seconds. It considers files modified within 24 hours, examines up to 240 recent metadata candidates, retains up to 120 observation streams, and suggests up to 24 folders (eight in the picker). Each initial replay is bounded to the last 2 MiB. Larger archives can hit these bounds; `discoveryLimited` appears in the local state response. Missing older history stays unknown. Quiet activity is not presented as continuously working, and native orders are reconstructed from available observations after restart.
+Discovery refreshes about every five seconds. It considers files modified within 24 hours, examines up to 240 recent metadata candidates, retains up to 120 observation streams, and suggests up to 24 watched folders (eight in the picker). Each initial replay is bounded to the last 2 MiB. Larger archives can hit these bounds; `discoveryLimited` appears in the local state response. Missing older history stays unknown. Quiet activity is not presented as continuously working, and native orders are reconstructed from available observations after restart.
 
 ## VS Code and Cursor
 

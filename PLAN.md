@@ -176,6 +176,9 @@ links: [plan-reader, runs, map]
   tech: Projects.enrich currently lets a newer general Map event replace a confirmed native task list with empty board todos and withdraw its dishes.
 - [ ] Confirm plan updates before serving completed dishes {#kitchen-plan-acknowledgements}
   tech: wait for successful Codex update_plan and legacy TodoWrite results; failed or interrupted calls must retain the last confirmed plan.
+- [x] Read only the logs of the folders you watch {#kitchen-scoped-logs}
+  by: claude
+  tech: LogObserver keeps a session only when its recorded cwd is inside a watched root; --sources hooks,logs,files and --no-discovery switch evidence off, and Map honours the same flags
 - [x] Bring the runnable kitchen into this repository {#kitchen-import}
   by: codex
   from: agent
@@ -273,6 +276,7 @@ files: [README.md, docs/**, package.json, CONTRIBUTING.md, examples/**, .github/
   tech: README definition, sentence-case headings, npm metadata, GitHub description and topics
 
 ## decisions
+- 2026-10-09: Log discovery is scoped to the watched project by default. Sessions whose recorded cwd is outside a watched root are not parsed, tracked, counted or listed, so the folder picker only suggests watched projects. --no-discovery stops all reads under the home directory. Codex rollouts are filed by date, so their 64 KiB header is still opened once to read the cwd; this is documented rather than hidden.
 - 2026-09-09: Review the public repository for concrete reliability and setup issues, recording reproducible findings separately from planned features. Describe Agenttrail as the local observability project with two views: Agenttrail Map for project structure and activity, and Agenttrail Kitchen for native tasks and role contributions. Document their current independent services and differing provider support rather than implying a unified event backend or agent orchestration.
 - 2026-09-08: Publish Kitchen to npm now that the owner has restored registry login. Use alpha.3 for the refreshed package README instead of changing the existing alpha.2 archive; keep the experimental version explicit and use the latest tag so npx agenttrail-kitchen . works. Verify the exact public package from a fresh consumer environment, then publish matching GitHub release assets and setup instructions. The owner chose browser setup first; no editor extension is being added.
 - 2026-09-08: Audit the downloadable public Kitchen release from an isolated consumer install, verify real repo observation and adapter behavior, fix launch gaps, and refresh the root README with Kitchen screenshots and exact install/support instructions. No editor extension currently exists; clarify whether the owner wants one built or wants the working browser setup documented. Keep unknown integration status explicit.

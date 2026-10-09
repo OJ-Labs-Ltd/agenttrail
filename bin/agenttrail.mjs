@@ -23,9 +23,19 @@ let hooksOnly = false
 let assumeYes = false
 let removeFlag = false
 let printFlag = false
+// Same switches as Kitchen. Map has no log reader, so `logs` is accepted but changes nothing here.
+const ALL_SOURCES = ['hooks', 'logs', 'files']
+let sources = ALL_SOURCES
+let discovery = true
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i]
   if (a === 'init') cmd = 'init'
+  else if (a === '--sources') {
+    sources = (argv[++i] || '').split(',')
+    const bad = sources.find(s => !ALL_SOURCES.includes(s))
+    if (bad !== undefined || !argv[i]) { console.error(`--sources takes ${ALL_SOURCES.join(',')}${bad ? ` (unknown: ${bad})` : ''}`); process.exit(1) }
+  }
+  else if (a === '--no-discovery') discovery = false
   else if (a === 'hook') cmd = 'hook'
   else if (a === '--port') port = parseInt(argv[++i], 10)
   else if (a === '--open') openBrowser = true
@@ -438,6 +448,7 @@ try {
       }, 150)
       return
     }
+    if (!sources.includes('files')) return // PLAN.md stays live; other file activity is not observed
     // plain repo churn → liveness signal
     treeDirty = true
     stateDirty = true
@@ -559,6 +570,7 @@ const server = http.createServer((req, res) => {
     if (treeDirty) { tree = buildTree(repo); treeDirty = false }
     res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ tree, treeTruncated }))
   } else if (u.pathname === '/suggest') {
+    if (!discovery) return res.writeHead(200, { 'content-type': 'application/json' }).end('[]')
     const seen = new Set(), out = []
     const add = p => { if (p && p !== repo && !seen.has(p) && fs.existsSync(p)) { seen.add(p); out.push(p) } }
     try {
@@ -648,6 +660,7 @@ const server = http.createServer((req, res) => {
     clients.add(res)
     req.on('close', () => clients.delete(res))
   } else if (u.pathname === '/hook' && req.method === 'POST') {
+    if (!sources.includes('hooks')) return res.writeHead(403).end()
     let body = ''
     req.on('data', c => body += c)
     req.on('end', () => {

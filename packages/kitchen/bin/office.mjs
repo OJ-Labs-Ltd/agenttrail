@@ -4,16 +4,18 @@ import path from 'node:path';
 import os from 'node:os';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
-import {startOffice} from '../src/server.mjs';
+import {startOffice,SOURCES} from '../src/server.mjs';
 
 const appRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 export function parseArgs(args,cwd=process.cwd()){
-  const options={roots:[],port:4780,open:true,saved:false,stateDir:path.join(os.homedir(),'.agent-office')};
+  const options={roots:[],port:4780,open:true,saved:false,sources:[...SOURCES],discovery:true,stateDir:path.join(os.homedir(),'.agent-office')};
   const value=i=>{if(!args[i]||args[i].startsWith('--'))throw new Error('Provide a value for '+args[i-1]+'.');return args[i];};
   for(let i=0;i<args.length;i++){
     if(args[i]==='--project')options.roots.push(path.resolve(cwd,value(++i)));
     else if(args[i]==='--port')options.port=Number(value(++i));
     else if(args[i]==='--state-dir')options.stateDir=path.resolve(cwd,value(++i));
+    else if(args[i]==='--sources'){options.sources=value(++i).split(',');const bad=options.sources.find(s=>!SOURCES.includes(s));if(bad)throw new Error('Unknown source: '+bad+'. Choose from '+SOURCES.join(', ')+'.');}
+    else if(args[i]==='--no-discovery')options.discovery=false;
     else if(args[i]==='--no-open')options.open=false;
     else if(args[i]==='--saved')options.saved=true;
     else if(args[i]==='--example')options.example=true;
@@ -29,8 +31,8 @@ function launchUrl(base,project,example){const url=new URL(liveUrl(base,project)
 function openBrowser(url){const bin=process.platform==='darwin'?'open':process.platform==='win32'?'cmd':'xdg-open',params=process.platform==='win32'?['/c','start','',url]:[url];const child=spawn(bin,params,{stdio:'ignore',detached:true});child.on('error',()=>{});child.unref();}
 export async function main(args=process.argv.slice(2)){
   const options=parseArgs(args);
-  if(options.help){console.log('Agenttrail Kitchen (experimental)\n  agenttrail-kitchen .             Watch the current repo\n  agenttrail-kitchen /path/to/repo  Open any working folder\n  --example                       Open the labeled example view\n  --project /path (repeatable)\n  --saved                         Reopen saved folders\n  --port 4780\n  --no-open\n  --state-dir /absolute/state\n\nNo PLAN.md, Agenttrail install, or repo changes required. A running kitchen is reused and receives the requested folders.');return;}
-  const {port,open,stateDir}=options,roots=options.roots;
+  if(options.help){console.log('Agenttrail Kitchen (experimental)\n  agenttrail-kitchen .             Watch the current repo\n  agenttrail-kitchen /path/to/repo  Open any working folder\n  --example                       Open the labeled example view\n  --project /path (repeatable)\n  --saved                         Reopen saved folders\n  --sources hooks,logs,files      Evidence to read (default: all; logs only for the watched folders)\n  --no-discovery                  Read nothing under your home directory\n  --port 4780\n  --no-open\n  --state-dir /absolute/state\n\nNo PLAN.md, Agenttrail install, or repo changes required. A running kitchen is reused and receives the requested folders.');return;}
+  const {port,open,stateDir,sources,discovery}=options,roots=options.roots;
   if(!roots.length&&(options.saved||process.cwd()===appRoot)){try{const saved=JSON.parse(await fs.readFile(path.join(stateDir,'projects.json'),'utf8'));if(Array.isArray(saved))roots.push(...saved.filter(s=>typeof s==='string'));}catch{}}
   if(!roots.length)roots.push(process.cwd());
   const unique=[];for(const root of roots){let real;try{real=await fs.realpath(root);if(!(await fs.stat(real)).isDirectory())throw 0;}catch{if(options.saved)continue;throw new Error('Project folder does not exist: '+root);}if(!unique.includes(real))unique.push(real);}
@@ -49,7 +51,7 @@ export async function main(args=process.argv.slice(2)){
     }
   }
   await fs.writeFile(path.join(stateDir,'projects.json'),JSON.stringify(unique),{mode:0o600});
-  const office=await startOffice({roots:unique,home:os.homedir(),stateDir,port});const url=launchUrl(office.url,unique[0],options.example);
+  const office=await startOffice({roots:unique,home:os.homedir(),stateDir,port,sources,discovery});const url=launchUrl(office.url,unique[0],options.example);
   console.log(`Agenttrail Kitchen is ready: ${url}\nWatching ${unique.map(p=>path.basename(p)).join(', ')}. Local metadata only.\nCodex and Claude observations are automatic when available. Use Connect agents for provider hooks.`);if(open)openBrowser(url);
   for(const signal of ['SIGINT','SIGTERM'])process.once(signal,async()=>{await office.close();process.exit(0);});
 }
