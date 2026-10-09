@@ -110,3 +110,7 @@ Standards touched: SEC-1, SEC-12, COD-7, GIT-1, GIT-8
     - `npm test --prefix packages/kitchen`, `npm run check`, `npm run build` and `node --check bin/agenttrail.mjs` all pass
   - Risk: This is the largest prose diff. Prefer tables for field lists to stay compact. FEED.md is published documentation, so run the humanize skill before finishing if available (the user's global rules ask for it). If the total ticket diff passes about 400 lines, split this task into a follow-up ticket before starting it (COD-10) instead of squeezing it in.
   - Commit: `a42c5b6e0cad`
+
+- [x] **Task 7: Fix: address 5 review findings (cycle 1)** (after 6)
+  - Intent: Review left 5 findings unresolved (NEEDS_WORK): **correctness** — APPROVED Correctness lens found nothing blocking. Feed-only mode refuses to start without a 16+ character token, the intake is bearer-gated and schema-validated, and the removed rout The agent is fixing them; nothing is needed from you.
+  - Commit: `e78973f18d95`
