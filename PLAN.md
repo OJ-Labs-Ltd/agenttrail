@@ -115,6 +115,13 @@ files: [bin/**, public/**]
   tech: repository review reproduced missing Host/Origin validation and mutation authentication; add coverage for UI actions, hooks and cross-board relays.
 - [ ] Keep Map and Kitchen hook setup independent {#runs-distinct-hooks}
   tech: Map's substring detection mistakes Kitchen's relay for its own; verify both installation orders and preserve unrelated hooks.
+- [x] Keep prompts, commands and secrets out of the Map's live view and saved state {#runs-payload-allowlist}
+  by: claude
+  from: agent
+  tech: handleHookEvent runs every hook through allowHook; tool detail is a project-relative file only, todos are capped and redacted, and runs loaded from older state files are rebuilt the same way; map-privacy.test.mjs checks the live endpoints and the saved file.
+- [ ] Reduce absolute paths in the Map's /whoami, /suggest and /spawn {#runs-local-action-paths}
+  from: agent
+  tech: these local-action endpoints still read and return absolute repository paths because board discovery and sibling spawning need them; scope them to trusted local requests alongside runs-request-boundary and return handles to the browser.
 - [x] Receive hook events and track sessions {#runs-endpoint}
   by: claude
   tech: /events endpoint; per-session todos, current tool, recent calls
@@ -176,6 +183,14 @@ links: [plan-reader, runs, map]
   tech: Projects.enrich currently lets a newer general Map event replace a confirmed native task list with empty board todos and withdraw its dishes.
 - [ ] Confirm plan updates before serving completed dishes {#kitchen-plan-acknowledgements}
   tech: wait for successful Codex update_plan and legacy TodoWrite results; failed or interrupted calls must retain the last confirmed plan.
+- [x] Keep prompts, commands and secrets out of the Kitchen browser feed {#kitchen-payload-allowlist}
+  by: claude
+  from: agent
+  tech: packages/kitchen/src/runtime/payload-allowlist.mjs lists the fields per event kind and is applied in crew.mjs and plates.mjs before storage; scrubSnapshot swaps roots for opaque handles and redacts token-like strings at the server.mjs boundary; payload-privacy.test.mjs feeds hostile events through the real HTTP service.
+- [x] Describe exactly what reaches the browser {#kitchen-privacy-docs}
+  by: claude
+  from: agent
+  tech: docs/OBSERVABILITY.md field table matches EVENT_FIELDS, ARTIFACT_FIELDS and HOOK_FIELDS, and lists what is still visible.
 - [x] Bring the runnable kitchen into this repository {#kitchen-import}
   by: codex
   from: agent
@@ -273,6 +288,7 @@ files: [README.md, docs/**, package.json, CONTRIBUTING.md, examples/**, .github/
   tech: README definition, sentence-case headings, npm metadata, GitHub description and topics
 
 ## decisions
+- 2026-10-09: One payload allowlist (packages/kitchen/src/runtime/payload-allowlist.mjs) serves both the Map and Kitchen. It sits under packages/kitchen/src/runtime so a single file ships in both npm packages, and the Map imports it by relative path. Every browser-bound field is listed per event kind or hook, absolute paths are reduced to project-relative, Kitchen project ids become opaque handles, and token-like strings are redacted. The Map's /whoami, /suggest and /spawn endpoints stay outside it for now and are tracked as an open task under runs.
 - 2026-09-09: Review the public repository for concrete reliability and setup issues, recording reproducible findings separately from planned features. Describe Agenttrail as the local observability project with two views: Agenttrail Map for project structure and activity, and Agenttrail Kitchen for native tasks and role contributions. Document their current independent services and differing provider support rather than implying a unified event backend or agent orchestration.
 - 2026-09-08: Publish Kitchen to npm now that the owner has restored registry login. Use alpha.3 for the refreshed package README instead of changing the existing alpha.2 archive; keep the experimental version explicit and use the latest tag so npx agenttrail-kitchen . works. Verify the exact public package from a fresh consumer environment, then publish matching GitHub release assets and setup instructions. The owner chose browser setup first; no editor extension is being added.
 - 2026-09-08: Audit the downloadable public Kitchen release from an isolated consumer install, verify real repo observation and adapter behavior, fix launch gaps, and refresh the root README with Kitchen screenshots and exact install/support instructions. No editor extension currently exists; clarify whether the owner wants one built or wants the working browser setup documented. Keep unknown integration status explicit.
