@@ -33,7 +33,7 @@
 
 ## Tasks
 
-- [ ] **Task 1: Record the feed-only decision and open the tasks in PLAN.md**
+- [x] **Task 1: Record the feed-only decision and open the tasks in PLAN.md**
   - Intent: PLAN.md convention requires plan-affecting decisions to be recorded BEFORE implementing. Add a dated entry under `## decisions` saying: Kitchen gains a `--feed-only` mode (no fs reads, token-gated intake, schema-validated), upstream names and structure kept for merge-friendliness, and the schema and FEED.md are the contract for Director. Add tasks under the existing `kitchen` component ({#kitchen}, files packages/kitchen/**) for schema, feed-only server, CLI flag and docs. Mark them `[ ]` with `from: agent`. Mark the one being worked `[~]` with `by: claude` as work proceeds. Do NOT add a new component.
 Standards touched: GIT-1, GIT-2
   - Files: `PLAN.md`
@@ -43,6 +43,7 @@ Standards touched: GIT-1, GIT-2
     - No new `## component` heading is added; existing `{#id}`s are unchanged
     - Commit message starts with `ATL-2: `
   - Risk: The decision entry is read by the owner, not by engineers. Write it in plain language and keep the engineer phrasing on `tech:` lines.
+  - Commit: `f2794ae995fd`
 
 - [ ] **Task 2: Add the feed JSON Schema and a small built-in validator** (after 1)
   - Intent: Create packages/kitchen/schema/feed.schema.json (JSON Schema draft 2020-12) with `$defs` for (a) `hookEvent`: the normalized event POST /api/hook accepts, which is `normalizeHook` output and `CrewStore.accept` input, (b) `artifactEvent`: what `PlateStore.accept` reads, and (c) `snapshot`: the version-2 object built by `snapshot()` in server.mjs. Derive snapshot fields from the code, not from memory: the session object in crew.mjs (`accept` init and `snapshot`), `Projects.enrich`, `projects.snapshot` and `kitchenMap`, `OrderStore.snapshot` (orders/tables/unplanned), `PlateStore.snapshot` (artifacts/transfers), and `workflowCrew`/`workflowPlates`. Use `additionalProperties:false` wherever the code emits a fixed shape. Allow `at` and `source` on hookEvent but document them as overwritten by the server. Add src/connectors/feed.mjs exporting a minimal validator, because zero dependencies rules out ajv. It supports only the keywords the schema uses (type incl. type arrays for null, enum, const, properties, required, additionalProperties:false, items, maxItems, maxLength, pattern, minimum/maximum, local $ref into #/$defs). It returns a list of `path: reason` strings that never include the offending value. Add a `ponytail:` comment stating it is a subset validator and that other keywords are unsupported. Add `schema` to package.json `files` so the published tarball carries it (check-package.mjs installs the tarball). Test file test/feed-schema.test.mjs covers: validator rejects an unknown field, a missing required field, a wrong type and a bad enum value. `normalizeHook` output from a claude and a cursor sample validates against hookEvent. A real snapshot from `startOffice({observe:false})` (non-feed mode, scripted events including a TodoWrite, an artifact and a transfer) validates against the snapshot def. This test keeps the schema honest against the code.
