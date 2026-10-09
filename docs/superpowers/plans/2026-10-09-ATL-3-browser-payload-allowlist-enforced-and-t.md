@@ -127,3 +127,7 @@ Standards touched: COD-7, SEC-1, SEC-13, GIT-1, GIT-8
     - No code files changed in this task; all package checks still pass
   - Risk: Keep claims narrow. Do not write 'no absolute path ever reaches the browser' while the /whoami, /suggest and /spawn follow-up is open; state the limits plainly. docs/kitchen/CONNECTING.md may mention project paths in the connect flow, so grep docs/kitchen/*.md for 'path' and fix any statement the handle change makes untrue.
   - Commit: `0b8a288aee9d`
+
+- [x] **Task 8: Fix: address 13 review findings (cycle 1)** (after 7)
+  - Intent: Review left 13 findings unresolved (NEEDS_WORK): **correctness** — NEEDS_WORK The allowlist, hook filtering, handle round-trip and hostile-event tests work as designed. One correctness defect remains. The secret redactor treats ordinary CamelCase fi The agent is fixing them; nothing is needed from you.
+  - Commit: `f1a5beafeea4`
