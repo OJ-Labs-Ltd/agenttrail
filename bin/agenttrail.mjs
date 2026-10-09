@@ -231,7 +231,7 @@ function cleanLoadedRun(r) {
 function relToRepo(p) {
   if (!p) return null
   const r = path.resolve(String(p))
-  return r === repo ? '' : r.startsWith(repo + path.sep) ? r.slice(repo.length + 1) : null
+  return r === repo ? '' : r.startsWith(repo + path.sep) ? titleText(r.slice(repo.length + 1), 300) : null
 }
 function handleHookEvent(rawEvent) {
   const ev = allowHook(rawEvent)
