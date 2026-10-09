@@ -1,17 +1,19 @@
 import path from 'node:path';
-import { clean,within } from './crew.mjs';
+import { within } from './crew.mjs';
+import { allowEvent,relativePath,titleText } from './payload-allowlist.mjs';
 
 const providers=['claude','codex','cursor'];
 const identity=value=>typeof value==='string'&&value.length>0&&value.length<=220&&/^[\w.:-]+$/.test(value);
 export class PlateStore {
   constructor(crew,clock=Date.now,findOrder=()=>null){this.findOrder=findOrder;this.crew=crew;this.clock=clock;this.artifacts=new Map();this.transfers=new Map();this.seen=new Set();}
-  accept(e){
+  accept(rawEvent){
+    const e=allowEvent(rawEvent);if(!e)return false;
     const project=this.crew.rootFor(e.cwd),at=this.clock();
     if(!project||!identity(e.id)||!identity(e.artifactId)||!identity(e.revisionId)||!providers.includes(e.provider)||!identity(e.sessionId)||!['produced','offered','received','failed'].includes(e.kind))return false;
     const eventKey=`${project}:${e.provider}:${e.id}`;if(this.seen.has(eventKey))return false;
     const producer=`${e.provider}:${e.sessionId}`,key=JSON.stringify([project,e.artifactId,e.revisionId]);
     const knownProducer=this.crew.sessions.get(producer);if(knownProducer&&knownProducer.project!==project)return false;
-    let file=null;if(e.file){if(typeof e.file!=='string')return false;const absolute=path.resolve(e.cwd,e.file);if(!within(absolute,project))return false;file=path.relative(project,absolute);}
+    let file=null;if(e.file){if(typeof e.file!=='string')return false;const absolute=path.resolve(e.cwd,e.file);if(!within(absolute,project))return false;file=relativePath(path.relative(project,absolute));}
     const prior=this.artifacts.get(key);if(prior&&prior.producer!==producer)return false;
     if(e.orderId&&(!identity(e.orderId)||this.findOrder(e.orderId)?.project!==project||prior&&prior.orderId!==e.orderId))return false;
     const orderId=prior?.orderId||e.orderId||null;
@@ -27,7 +29,7 @@ export class PlateStore {
     }
     this.seen.add(eventKey);if(this.seen.size>4000)this.seen.delete(this.seen.values().next().value);
     const kind=['json','image','text','code','table'].includes(e.type)?e.type:'unknown';
-    this.artifacts.set(key,{id:key,artifactId:e.artifactId,revisionId:e.revisionId,project,producer,producerRoleId:prior?prior.producerRoleId:e.kind==='produced'?knownProducer?.roleBinding?.roleId||null:null,orderId,kind:prior?.kind||kind,file:prior?.file||file,label:prior?.label||clean(e.label)||file||'Shared artifact',at:prior?.at||at,source:'explicit relay',eventId:prior?.eventId||e.id});
+    this.artifacts.set(key,{id:key,artifactId:e.artifactId,revisionId:e.revisionId,project,producer,producerRoleId:prior?prior.producerRoleId:e.kind==='produced'?knownProducer?.roleBinding?.roleId||null:null,orderId,kind:prior?.kind||kind,file:prior?.file||file,label:prior?.label||titleText(e.label)||file||'Shared artifact',at:prior?.at||at,source:'explicit relay',eventId:prior?.eventId||e.id});
     if(transfer)this.transfers.set(transfer.id,transfer);
     while(this.artifacts.size>200)this.artifacts.delete(this.artifacts.keys().next().value);
     for(const [id,t] of this.transfers)if(!this.artifacts.has(t.artifactKey))this.transfers.delete(id);

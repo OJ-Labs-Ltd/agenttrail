@@ -8,6 +8,7 @@ import {CrewStore} from '../src/runtime/crew.mjs';
 import {LogObserver} from '../src/connectors/logs.mjs';
 import {Projects} from '../src/agenttrail/projects.mjs';
 import {parseArgs} from '../bin/office.mjs';
+import {projectHandle} from '../src/runtime/payload-allowlist.mjs';
 import {spawn,execFile} from 'node:child_process';
 import net from 'node:net';
 import {promisify} from 'node:util';
@@ -111,7 +112,7 @@ test('attaching a symlinked folder to a running Kitchen lets its observer see th
   const {home,watched,other}=await twoProjects(t),link=path.join(home,'link-to-other');await fs.symlink(other,link);await claudeTranscript(home,link,'via-link');
   const stateDir=path.join(home,'state'),office=await startOffice({roots:[watched],home,stateDir,port:0});t.after(()=>office.close());
   await promisify(execFile)(process.execPath,[officeCli,link,'--state-dir',stateDir,'--no-open'],{timeout:10000});
-  assert.ok(office.snapshot().executors.some(e=>e.project===other&&e.id.endsWith('claude-via-link')));
+  assert.ok(office.snapshot().executors.some(e=>e.project===projectHandle(other)&&e.id.endsWith('claude-via-link')));
 });
 test('a symlinked folder stays known to the link-named Claude directory after the saved folders are reloaded',async t=>{
   const {home,watched}=await twoProjects(t),link=path.join(home,'link-to-watched');await fs.symlink(watched,link);

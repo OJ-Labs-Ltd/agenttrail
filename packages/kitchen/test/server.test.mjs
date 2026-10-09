@@ -7,6 +7,7 @@ import {startOffice} from '../src/server.mjs';
 import {hookConfig,installConfig} from '../src/connectors/setup.mjs';
 import {LogObserver} from '../src/connectors/logs.mjs';
 import {CrewStore} from '../src/runtime/crew.mjs';
+import {projectHandle} from '../src/runtime/payload-allowlist.mjs';
 
 test('setup is additive, idempotent and removes only the office hook',async t=>{
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'orbit-setup-'));t.after(()=>fs.rm(root,{recursive:true,force:true}));
@@ -53,7 +54,39 @@ test('local server authenticates writes, limits scope, streams events and keeps 
   const outside=await fetcher('/api/hook',{method:'POST',headers,body:JSON.stringify({...event,id:'outside',cwd:home})}).then(r=>r.json());assert.equal(outside.accepted,false);
   const abort=new AbortController(),stream=await fetcher('/api/events',{signal:abort.signal});const reader=stream.body.getReader();const message=await reader.read();assert.match(new TextDecoder().decode(message.value),/live-session/);abort.abort();
   const setupHeaders={'x-office-token':boot.token,'content-type':'application/json'};
-  const preview=await fetcher('/api/setup/preview',{method:'POST',headers:setupHeaders,body:JSON.stringify({project:root,provider:'cursor'})}).then(r=>r.json());
-  assert.equal((await fetcher('/api/setup/apply',{method:'POST',headers:setupHeaders,body:JSON.stringify({project:root,provider:'cursor',revision:'outdated'})})).status,409);
-  assert.equal((await fetcher('/api/setup/apply',{method:'POST',headers:setupHeaders,body:JSON.stringify({project:root,provider:'cursor',revision:preview.revision})})).status,200);
+  const preview=await fetcher('/api/setup/preview',{method:'POST',headers:setupHeaders,body:JSON.stringify({project:projectHandle(root),provider:'cursor'})}).then(r=>r.json());
+  assert.equal((await fetcher('/api/setup/apply',{method:'POST',headers:setupHeaders,body:JSON.stringify({project:projectHandle(root),provider:'cursor',revision:'outdated'})})).status,409);
+  assert.equal((await fetcher('/api/setup/apply',{method:'POST',headers:setupHeaders,body:JSON.stringify({project:projectHandle(root),provider:'cursor',revision:preview.revision})})).status,200);
+});
+test('browser feed carries handles instead of paths and handles round-trip through project actions',async t=>{
+  const home=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'orbit-handles-'))),stateDir=path.join(home,'state');
+  const [root,other,typed]=['project','other','typed'].map(name=>path.join(home,name));await Promise.all([path.join(root,'pkg'),other,typed].map(dir=>fs.mkdir(dir,{recursive:true})));
+  const logDir=path.join(home,'.codex/sessions',...new Date().toISOString().slice(0,10).split('-'));await fs.mkdir(logDir,{recursive:true});
+  // Only sessions inside a watched root are listed, so the unwatched folder's log never reaches recentProjects.
+  await fs.writeFile(path.join(logDir,'watched.jsonl'),JSON.stringify({type:'session_meta',payload:{id:'logged',cwd:path.join(root,'pkg')}})+'\n');
+  await fs.writeFile(path.join(logDir,'other.jsonl'),JSON.stringify({type:'session_meta',payload:{id:'elsewhere',cwd:other}})+'\n');
+  const office=await startOffice({roots:[root],home,stateDir,port:0});t.after(async()=>{await office.close();await fs.rm(home,{recursive:true,force:true});});
+  const fetcher=(p,opt)=>fetch(office.url+p,opt);
+  const hook=JSON.parse(await fs.readFile(path.join(stateDir,'server.json'),'utf8'));
+  await fetcher('/api/hook',{method:'POST',headers:{authorization:`Bearer ${hook.hookToken}`},body:JSON.stringify({provider:'cursor',id:'e1',sessionId:'s1',cwd:path.join(root,'pkg'),kind:'tool-start',tool:'Write',file:path.join(root,'pkg/main.js')})});
+  const abort=new AbortController(),stream=await fetcher('/api/events',{signal:abort.signal}),first=new TextDecoder().decode((await stream.body.getReader().read()).value);abort.abort();
+  const state=await fetcher('/api/state').then(r=>r.json()),boot=await fetcher('/api/bootstrap').then(r=>r.json());
+  for(const feed of [JSON.stringify(state),JSON.stringify(boot),first]){
+    assert.ok(!feed.includes(root)&&!feed.includes(home),'no watched root or home path reaches the browser');
+    assert.doesNotMatch(feed,/"\/[\w.-]+\//,'no absolute path starts a string');
+  }
+  assert.equal(state.projects[0].id,projectHandle(root));
+  assert.ok(state.executors.length&&state.executors.every(e=>e.project===projectHandle(root)&&e.cwd==='pkg'));
+  assert.deepEqual(state.recentProjects.map(r=>r.name),['pkg'],'unwatched projects are not listed');
+  assert.deepEqual(Object.keys(state.recentProjects[0]).sort(),['handle','lastSeenAt','name','providers']);
+  const otherHandle=projectHandle(other);
+  const headers={'x-office-token':boot.token,'content-type':'application/json'},post=(p,data)=>fetcher(p,{method:'POST',headers,body:JSON.stringify(data)});
+  assert.equal((await post('/api/setup/preview',{project:otherHandle,provider:'cursor'})).status,400,'a handle that is not watched is refused');
+  const preview=await post('/api/setup/preview',{project:projectHandle(root),provider:'cursor'}).then(r=>r.json());
+  assert.ok(!path.isAbsolute(preview.file),'the settings file is shown project-relative');
+  const unknown=await post('/api/projects',{handle:'0'.repeat(12)});assert.equal(unknown.status,400);assert.match((await unknown.json()).error,/could not be found/);
+  assert.equal((await post('/api/projects',{handle:otherHandle})).status,400,'an unlisted handle cannot attach a folder');
+  assert.equal((await post('/api/projects',{handle:projectHandle(root)}).then(r=>r.json())).id,projectHandle(root));
+  assert.equal((await post('/api/projects',{path:typed}).then(r=>r.json())).id,projectHandle(typed));
+  assert.deepEqual((await fetcher('/api/state').then(r=>r.json())).projects.map(p=>p.id).sort(),[root,typed].map(projectHandle).sort());
 });

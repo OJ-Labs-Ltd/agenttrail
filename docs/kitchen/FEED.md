@@ -231,7 +231,7 @@ The three hand-over fields are optional in the schema but required by the state 
 | --- | --- | --- |
 | `app` | `"agenttrail-kitchen"` | Always |
 | `version` | `2` | Always. A change to the shape will change this number |
-| `recentProjects` | Array, at most 24 | Always empty in feed-only mode, because nothing is discovered. Each entry would have `path`, `name`, `providers` and `lastSeenAt` |
+| `recentProjects` | Array, at most 24 | Always empty in feed-only mode, because nothing is discovered. Each entry would have `handle`, `name`, `providers` and `lastSeenAt` |
 | `discoveryLimited` | Boolean | Always `false` |
 | `projects` | Array of project | One per logical root |
 | `crew` | Array of crew member | The sessions, and any workflow roles |
@@ -241,7 +241,7 @@ The three hand-over fields are optional in the schema but required by the state 
 | `unplanned` | Array of unplanned | Sessions that have no task list |
 | `artifacts` | Array of artifact | Recorded artifact revisions |
 | `transfers` | Array of transfer | Recorded hand-overs |
-| `installed` | Object | Always `{}`: no hook configuration is inspected. When populated elsewhere, each key is a root and each value has the booleans `claude` and `cursor` |
+| `installed` | Object | Always `{}`: no hook configuration is inspected. When populated elsewhere, each key is a project handle and each value has the booleans `claude` and `cursor` |
 | `observers` | Object | Always the same three entries (below) |
 | `observing` | Boolean | Always `false` |
 
@@ -255,8 +255,8 @@ One entry per logical root. Nothing under the root is read, so the plan-derived 
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `id` | String | The logical root path |
-| `name` | String | Its last path segment |
+| `id` | String | An opaque handle for the logical root: the first 12 hex characters of its SHA-256. The root path itself is never sent |
+| `name` | String | The last segment of the root path |
 | `components` | Array | Always empty in feed-only mode. A component has `id`, `title`, `files`, `tasks` (plan tasks), `needs`, `links`, and optionally `kind` (`human` or `knowledge`) and `url` |
 | `activity` | Array, at most 10 | Always empty. Each entry would have `file` and `at` |
 | `boardUrl` | String or `null` | Always `null` |
@@ -280,8 +280,8 @@ An executor is one agent session. A crew member has every executor field and can
 | `id` | String | `provider:sessionId` |
 | `sessionId` | String | As sent |
 | `provider` | `claude`, `codex` or `cursor` | A crew member's can be `null` |
-| `project` | String | The logical root the session sits in |
-| `cwd` | String | As sent |
+| `project` | String | The handle of the logical root the session sits in |
+| `cwd` | String | Relative to its logical root (`.` for the root itself) |
 | `startedAt` | Integer | Time of the first event |
 | `lastEventAt` | Integer | Time of the latest event. A crew member's can be `null` |
 | `state` | One of `unknown`, `working`, `reading`, `writing`, `executing`, `error`, `permission`, `input`, `complete`, `interrupted`, `offline` | Derived from the events. A crew member can also be `idle` |

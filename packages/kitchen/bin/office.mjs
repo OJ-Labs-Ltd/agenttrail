@@ -5,6 +5,7 @@ import os from 'node:os';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {startOffice,feedTokenMinimum,SOURCES} from '../src/server.mjs';
+import {projectHandle} from '../src/runtime/payload-allowlist.mjs';
 
 const appRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 export function parseArgs(args,cwd=process.cwd()){
@@ -34,7 +35,7 @@ export function parseArgs(args,cwd=process.cwd()){
   if(!Number.isInteger(options.port)||options.port<1024||options.port>65515)throw new Error('Choose a port from 1024 through 65515.');
   return options;
 }
-export function liveUrl(base,project){const url=new URL(base);url.searchParams.set('project',project);url.searchParams.set('mode','live');return url.href;}
+export function liveUrl(base,project){const url=new URL(base);url.searchParams.set('project',projectHandle(project));url.searchParams.set('mode','live');return url.href;}
 function launchUrl(base,project,example){const url=new URL(liveUrl(base,project));if(example){url.searchParams.set('mode','demo');url.searchParams.delete('project');}return url.href;}
 function openBrowser(url){const bin=process.platform==='darwin'?'open':process.platform==='win32'?'cmd':'xdg-open',params=process.platform==='win32'?['/c','start','',url]:[url];const child=spawn(bin,params,{stdio:'ignore',detached:true});child.on('error',()=>{});child.unref();}
 // The token comes only from the environment: argv leaks through ps and shell history.
