@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import path from 'node:path';
 import { clean } from './crew.mjs';
 
@@ -113,4 +114,29 @@ export function relativePath(file,roots=[]){
   if(!isAbsolute(normal)&&normal!=='..'&&!normal.startsWith('../'))return titleText(normal,300);
   const name=path.posix.basename(normal);
   return titleText(name&&!/^[A-Za-z]:$/.test(name)?name:'[path]',300);
+}
+
+// Opaque stand-in for a watched root: the browser can select and name a project without learning where it lives.
+export const projectHandle=root=>crypto.createHash('sha256').update(root).digest('hex').slice(0,12);
+
+const STRAY_PATH=/(?<![\w.~:/-])\/(?:[^\s/"'`]+\/)+[^\s/"'`]*/g;
+const escapeRegExp=text=>text.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+
+// The last stop before the browser: whatever field a path or secret sits in, it does not survive this.
+// ponytail: swaps POSIX-style roots only; a Windows root is still reduced to its folder name by relativePath.
+export function scrubSnapshot(snapshot,{roots,home}){
+  const bases=[...roots].sort((a,b)=>b.length-a.length);
+  const swaps=[...bases.map(root=>[root,projectHandle(root)]),...(home?[[home,'~']]:[])].map(([from,to])=>[new RegExp(escapeRegExp(from)+'(?![\\w.-])','g'),to]);
+  const relativeCwd=cwd=>{for(const root of bases){if(cwd===root)return '.';if(cwd.startsWith(root+'/'))return cwd.slice(root.length+1);}return null;};
+  const leaf=text=>{
+    const swapped=swaps.reduce((out,[pattern,to])=>out.replace(pattern,to),text);
+    return redactSecrets(isAbsolute(swapped)?relativePath(swapped):swapped.replace(STRAY_PATH,stray=>path.posix.basename(stray)||'[path]'));
+  };
+  const walk=(value,key)=>{
+    if(typeof value==='string')return key==='cwd'&&relativeCwd(value)||leaf(value);
+    if(Array.isArray(value))return value.map(item=>walk(item));
+    if(isRecord(value))return Object.fromEntries(Object.entries(value).map(([field,item])=>[leaf(field),walk(item,field)]));
+    return value;
+  };
+  return walk(snapshot);
 }

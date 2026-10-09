@@ -31,6 +31,7 @@ try{
   const stateDir=path.join(fixture,'state'),observerHome=path.join(fixture,'empty-observer-home');
   await Promise.all([first,second,observerHome].map(p=>fs.mkdir(p)));
   const {startOffice}=await import(pathToFileURL(path.join(installed,'src/server.mjs')));
+  const {projectHandle}=await import(pathToFileURL(path.join(installed,'src/runtime/payload-allowlist.mjs')));
   service=await startOffice({roots:[first],home:observerHome,stateDir,port:0});
   for(const [asset,mime] of [['/','text/html'],['/build/app.js','text/javascript'],['/kitchen.css','text/css'],['/fonts/nunito-800.woff2','font/woff2'],['/favicon.svg','image/svg+xml']]){
     const response=await fetch(service.url+asset);
@@ -50,7 +51,7 @@ try{
   await fs.writeFile(log,JSON.stringify({type:'session_meta',payload:{id:'consumer-check',cwd:second}})+'\n'+row('event_msg',{type:'task_started',turn_id:'check'})+plan('in_progress')+row('response_item',{type:'function_call',name:'Read',call_id:'research',arguments:JSON.stringify({file_path:'research/notes.md',private:'never-show-this'})}));
   const {stdout}=await launch([second,'--state-dir',stateDir,'--no-open']);
   const live=new URL(stdout.split('\n')[0].replace('Kitchen updated: ',''));
-  assert.equal(live.searchParams.get('project'),second);
+  assert.equal(live.searchParams.get('project'),projectHandle(second));
   assert.equal(live.searchParams.get('mode'),'live');
   events=new AbortController();
   const reader=(await fetch(service.url+'/api/events',{signal:events.signal})).body.getReader();
@@ -70,14 +71,14 @@ try{
   };
   const reading=await nextState(s=>s.executors.some(e=>e.sessionId==='consumer-check'&&e.state==='reading')&&s.orders.some(o=>o.title==='Check the installed kitchen'));
   assert.equal(reading.executors.length,1);
-  assert.ok(reading.crew.filter(c=>c.project===second).length>1,'A planless repo has multiple role chefs');
+  assert.ok(reading.crew.filter(c=>c.project===projectHandle(second)).length>1,'A planless repo has multiple role chefs');
   assert.equal(reading.orders.length,1);
   assert.equal(reading.orders[0].status,'in_progress');
-  const researchChef=reading.crew.find(c=>c.project===second&&c.workingCount);
+  const researchChef=reading.crew.find(c=>c.project===projectHandle(second)&&c.workingCount);
   assert.equal(researchChef.roleId,'researcher');
   await fs.appendFile(log,row('response_item',{type:'function_call_output',call_id:'research',output:'never-show-this'})+row('response_item',{type:'function_call',name:'Write',call_id:'build',arguments:JSON.stringify({file_path:'src/app.js',content:'never-show-this'})}));
   const writing=await nextState(s=>s.executors.some(e=>e.state==='writing'));
-  const buildChef=writing.crew.find(c=>c.project===second&&c.workingCount);
+  const buildChef=writing.crew.find(c=>c.project===projectHandle(second)&&c.workingCount);
   assert.notEqual(buildChef.id,researchChef.id,'The same session changes responsibilities');
   assert.equal(writing.orders[0].id,reading.orders[0].id,'Both chefs contribute to the same dish');
   assert.ok(writing.orders[0].contributors.some(c=>c.chefId===researchChef.id));
@@ -88,7 +89,7 @@ try{
   // File observation works independently of native todos and never writes to the repo.
   const changed=path.join(second,'observed-file.txt');
   await fs.writeFile(changed,'A consumer-created file.\n');
-  await nextState(s=>s.projects.find(p=>p.id===second)?.activity.some(a=>a.file==='observed-file.txt'));
+  await nextState(s=>s.projects.find(p=>p.id===projectHandle(second))?.activity.some(a=>a.file==='observed-file.txt'));
   assert.equal(await fs.readFile(changed,'utf8'),'A consumer-created file.\n');
   await fs.unlink(changed);
   const example=await launch([second,'--example','--state-dir',stateDir,'--no-open']);

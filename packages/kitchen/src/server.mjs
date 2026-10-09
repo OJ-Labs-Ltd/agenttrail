@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { CrewStore } from './runtime/crew.mjs';
 import {OrderStore} from './runtime/orders.mjs';
 import { PlateStore } from './runtime/plates.mjs';
+import { projectHandle,relativePath,scrubSnapshot } from './runtime/payload-allowlist.mjs';
 import { LogObserver } from './connectors/logs.mjs';
 import { Projects } from './agenttrail/projects.mjs';
 import {workflowCrew,workflowPlates} from './runtime/workflow-crew.mjs';
@@ -26,7 +27,8 @@ export async function startOffice({roots,home,stateDir,port=4780,observe=true}) 
   async function refreshInstalled(){
     const next={};for(const root of roots){next[root]={};for(const provider of ['claude','cursor']){try{const config=JSON.parse(await fs.readFile(configPath(root,provider),'utf8'));next[root][provider]=Object.values(config.hooks||{}).flat().some(entry=>entry.command===setupCommands[provider]||entry.hooks?.some(h=>h.command===setupCommands[provider]));}catch{next[root][provider]=false;}}}installed=next;
   }
-  const snapshot=()=>{const maps=projects.snapshot(),executors=projects.enrich(store.snapshot()),ledger=plates.snapshot();return {app:'agenttrail-kitchen',version:2,recentProjects:logs.recentProjects,discoveryLimited:logs.limited,projects:maps,crew:workflowCrew(maps,executors),executors,...orders.snapshot(maps,executors),...ledger,artifacts:[...ledger.artifacts,...workflowPlates(maps)],installed,observers:{codex:{available:logs.available.codex,mode:'experimental logs'},claude:{available:logs.available.claude,mode:'hooks or logs'},cursor:{mode:'hooks'}},observing:observe};};
+  const snapshot=()=>{const maps=projects.snapshot(),executors=projects.enrich(store.snapshot()),ledger=plates.snapshot();return scrubSnapshot({app:'agenttrail-kitchen',version:2,recentProjects:logs.recentProjects.map(({handle,name,providers,lastSeenAt})=>({handle,name,providers,lastSeenAt})),discoveryLimited:logs.limited,projects:maps,crew:workflowCrew(maps,executors),executors,...orders.snapshot(maps,executors),...ledger,artifacts:[...ledger.artifacts,...workflowPlates(maps)],installed,observers:{codex:{available:logs.available.codex,mode:'experimental logs'},claude:{available:logs.available.claude,mode:'hooks or logs'},cursor:{mode:'hooks'}},observing:observe},{roots,home});};
+  const watchedRoot=handle=>roots.find(root=>projectHandle(root)===handle);
   async function tick(){if(busy||closing)return;busy=true;try{
     if(Date.now()-lastProjects>3000){lastProjects=Date.now();await projects.poll();await refreshInstalled();}
     if(observe)await logs.poll();
@@ -65,12 +67,15 @@ export async function startOffice({roots,home,stateDir,port=4780,observe=true}) 
         if(req.headers['x-office-token']!==csrf)return json(res,403,{error:'Reload the office before changing settings.'});
         const data=await body(req);
         if(u.pathname==='/api/projects'){
-          const [id]=await addProjects([data.path]);return json(res,200,{id});
+          const chosen=typeof data.handle==='string'?logs.recentProjects.find(repo=>repo.handle===data.handle)?.path||watchedRoot(data.handle):data.path;
+          if(data.handle!==undefined&&!chosen)throw new Error('That folder could not be found.');
+          const [root]=await addProjects([chosen]);return json(res,200,{id:projectHandle(root)});
         }
         if(u.pathname==='/api/setup/preview'||u.pathname==='/api/setup/apply'){
-          if(!roots.includes(data.project)||!setupCommands[data.provider])return json(res,400,{error:'Choose a watched project and provider.'});
-          const change=await hookConfig(data.project,data.provider,setupCommands[data.provider],!!data.remove);
-          if(u.pathname.endsWith('preview'))return json(res,200,{file:change.file,events:change.events,revision:hash(change.before),remove:change.remove});
+          const project=watchedRoot(data.project);
+          if(!project||!setupCommands[data.provider])return json(res,400,{error:'Choose a watched project and provider.'});
+          const change=await hookConfig(project,data.provider,setupCommands[data.provider],!!data.remove);
+          if(u.pathname.endsWith('preview'))return json(res,200,{file:relativePath(change.file,roots),events:change.events,revision:hash(change.before),remove:change.remove});
           if(data.revision!==hash(change.before))return json(res,409,{error:'Settings changed. Review the connection again.'});
           await installConfig(change);await refreshInstalled();await tick();return json(res,200,{ok:true});
         }
