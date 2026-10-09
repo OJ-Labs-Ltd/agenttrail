@@ -200,6 +200,9 @@ links: [plan-reader, runs, map]
 ## Ship to GitHub and npm {#ship}
 needs: [map, explorer]
 files: [README.md, docs/**, package.json, CONTRIBUTING.md, examples/**, .github/**]
+- [x] Credit upstream and keep the OJ Labs fork in sync with it {#ship-fork-hygiene}
+  by: claude
+  tech: ATTRIBUTION.md, README "What OJ Labs changed", docs/UPSTREAM-SYNC.md, fork-checks.yml mirroring upstream kitchen.yml on every PR (ATL-7)
 - [x] Review reliability and explain the two observability views {#ship-observability-review}
   by: codex
   from: agent
@@ -277,6 +280,7 @@ files: [README.md, docs/**, package.json, CONTRIBUTING.md, examples/**, .github/
 
 ## decisions
 - 2026-10-09: Fix the three coexistence and acknowledgement defects named in docs/OBSERVABILITY.md (ATL-4). Kitchen's native todo list changes only on a confirmed tool result and always outranks Map board todos; Map recognises only its own hook command, so both hook setups coexist. The doc's known-limits paragraphs are removed now that this holds.
+- 2026-10-09: OJ Labs fork hygiene (ATL-7). Leave upstream's kitchen.yml untouched so upstream merges stay clean; add a separate fork-checks.yml that runs the same steps on every pull request (upstream's runs only for changed kitchen paths), with a test that fails if the two drift apart. Credit upstream in ATTRIBUTION.md, list fork tickets in the README, document the fetch-and-merge routine in docs/UPSTREAM-SYNC.md. No package renames, nothing published to npm from the fork, no new dependencies.
 - 2026-09-09: Review the public repository for concrete reliability and setup issues, recording reproducible findings separately from planned features. Describe Agenttrail as the local observability project with two views: Agenttrail Map for project structure and activity, and Agenttrail Kitchen for native tasks and role contributions. Document their current independent services and differing provider support rather than implying a unified event backend or agent orchestration.
 - 2026-09-08: Publish Kitchen to npm now that the owner has restored registry login. Use alpha.3 for the refreshed package README instead of changing the existing alpha.2 archive; keep the experimental version explicit and use the latest tag so npx agenttrail-kitchen . works. Verify the exact public package from a fresh consumer environment, then publish matching GitHub release assets and setup instructions. The owner chose browser setup first; no editor extension is being added.
 - 2026-09-08: Audit the downloadable public Kitchen release from an isolated consumer install, verify real repo observation and adapter behavior, fix launch gaps, and refresh the root README with Kitchen screenshots and exact install/support instructions. No editor extension currently exists; clarify whether the owner wants one built or wants the working browser setup documented. Keep unknown integration status explicit.
