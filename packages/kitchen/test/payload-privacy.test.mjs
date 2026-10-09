@@ -35,11 +35,14 @@ test('hostile events from hooks and both log formats never reach /api/state, /ap
     codexRow('event_msg',{type:'task_started',turn_id:'codex-turn'}),
     codexRow('response_item',{type:'function_call',name:'shell',call_id:'codex-call',arguments:JSON.stringify({file_path:keyedFile,command:SHELL_COMMAND,prompt:promptTitle('Codex prompt')})}),
     codexRow('response_item',{type:'function_call',name:'update_plan',call_id:'codex-plan',arguments:JSON.stringify({plan:[{step:promptTitle('Codex step'),status:'in_progress'}]})}),
+    // Plans count only once their tool result confirms them.
+    codexRow('response_item',{type:'function_call_output',call_id:'codex-plan',output:'Plan updated'}),
   ].join('\n')+'\n');
-  const claudeRow=(uuid,message)=>JSON.stringify({type:'assistant',uuid,timestamp,sessionId:'claude-session',cwd:root,message});
+  const claudeRow=(uuid,message,type='assistant')=>JSON.stringify({type,uuid,timestamp,sessionId:'claude-session',cwd:root,message});
   await fs.writeFile(path.join(claudeDir,'hostile.jsonl'),[
     claudeRow('c1',{content:[{type:'tool_use',id:'claude-call',name:'Bash',input:{command:SHELL_COMMAND,file_path:keyedFile,description:promptTitle('Claude prompt')}}]}),
     claudeRow('c2',{content:[{type:'tool_use',id:'claude-todos',name:'TodoWrite',input:{todos:[{content:promptTitle('Claude todo'),status:'pending'}]}}]}),
+    claudeRow('c3',{content:[{type:'tool_result',tool_use_id:'claude-todos',content:'Todos have been modified successfully'}]},'user'),
   ].join('\n')+'\n');
 
   const office=await startOffice({roots:[root],home,stateDir,port:0});

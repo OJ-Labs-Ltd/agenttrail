@@ -64,9 +64,7 @@ A completed dish means a native todo was reported complete. A deployment or publ
 
 ## Current integration limits
 
-Map and Kitchen have not yet consolidated their provider handling. The repository review identified two coexistence bugs: newer Map activity can override Kitchen's native todo list, and Map hook setup can mistake an existing Kitchen hook for its own. Until these are corrected, use Kitchen independently when relying on its native-task display. Running both commands does not guarantee matching task histories.
-
-Some legacy plan adapters also accept a proposed list when its tool call starts, before observing a successful result. These need acknowledgement handling so rejected updates cannot look completed. See the open reliability tasks in [PLAN.md](../PLAN.md).
+Map and Kitchen have not yet consolidated their provider handling, so each keeps its own history. They can run side by side: both hook setups can be installed in either order without removing each other, and Map activity never replaces a native todo list that Kitchen has observed. Kitchen changes a native todo list only when the tool result confirms the update; a rejected or interrupted `update_plan` or `TodoWrite` leaves the last confirmed list in place.
 
 ## What stays on your machine
 

@@ -113,8 +113,6 @@ links: [map]
 files: [bin/**, public/**]
 - [ ] Restrict Map actions to trusted local requests {#runs-request-boundary}
   tech: repository review reproduced missing Host/Origin validation and mutation authentication; add coverage for UI actions, hooks and cross-board relays.
-- [ ] Keep Map and Kitchen hook setup independent {#runs-distinct-hooks}
-  tech: Map's substring detection mistakes Kitchen's relay for its own; verify both installation orders and preserve unrelated hooks.
 - [x] Keep prompts, commands and secrets out of the Map's live view and saved state {#runs-payload-allowlist}
   by: claude
   from: agent
@@ -122,6 +120,9 @@ files: [bin/**, public/**]
 - [ ] Reduce absolute paths in the Map's /whoami, /suggest and /spawn {#runs-local-action-paths}
   from: agent
   tech: these local-action endpoints still read and return absolute repository paths because board discovery and sibling spawning need them; scope them to trusted local requests alongside runs-request-boundary and return handles to the browser.
+- [x] Keep Map and Kitchen hook setup independent {#runs-distinct-hooks}
+  by: claude
+  tech: hasMapHook in bin/agenttrail.mjs matches only Map's own `agenttrail.mjs hook` command, not Kitchen's relay; test/coexistence.test.mjs installs both in either order and removes Kitchen's.
 - [x] Receive hook events and track sessions {#runs-endpoint}
   by: claude
   tech: /events endpoint; per-session todos, current tool, recent calls
@@ -179,10 +180,6 @@ files: [bin/**, public/**]
 tech: optional kitchen package, local observers, workflow model and Three.js renderer
 files: [packages/kitchen/**]
 links: [plan-reader, runs, map]
-- [ ] Preserve native todos when Map reports newer activity {#kitchen-native-plan-precedence}
-  tech: Projects.enrich currently lets a newer general Map event replace a confirmed native task list with empty board todos and withdraw its dishes.
-- [ ] Confirm plan updates before serving completed dishes {#kitchen-plan-acknowledgements}
-  tech: wait for successful Codex update_plan and legacy TodoWrite results; failed or interrupted calls must retain the last confirmed plan.
 - [x] Keep prompts, commands and secrets out of the Kitchen browser feed {#kitchen-payload-allowlist}
   by: claude
   from: agent
@@ -191,6 +188,12 @@ links: [plan-reader, runs, map]
   by: claude
   from: agent
   tech: docs/OBSERVABILITY.md field table matches EVENT_FIELDS, ARTIFACT_FIELDS and HOOK_FIELDS, and lists what is still visible.
+- [x] Preserve native todos when Map reports newer activity {#kitchen-native-plan-precedence}
+  by: claude
+  tech: Projects.enrich uses board todos only when the session has no native list, so newer Map events can no longer withdraw dishes.
+- [x] Confirm plan updates before serving completed dishes {#kitchen-plan-acknowledgements}
+  by: claude
+  tech: Codex update_plan and Claude log TodoWrite now emit tasks on the successful tool result, not the call; rejected or interrupted calls keep the last confirmed plan.
 - [x] Bring the runnable kitchen into this repository {#kitchen-import}
   by: codex
   from: agent
@@ -212,6 +215,9 @@ links: [plan-reader, runs, map]
 ## Ship to GitHub and npm {#ship}
 needs: [map, explorer]
 files: [README.md, docs/**, package.json, CONTRIBUTING.md, examples/**, .github/**]
+- [x] Credit upstream and keep the OJ Labs fork in sync with it {#ship-fork-hygiene}
+  by: claude
+  tech: ATTRIBUTION.md, README "What OJ Labs changed", docs/UPSTREAM-SYNC.md, fork-checks.yml mirroring upstream kitchen.yml on every PR (ATL-7)
 - [x] Review reliability and explain the two observability views {#ship-observability-review}
   by: codex
   from: agent
@@ -289,6 +295,8 @@ files: [README.md, docs/**, package.json, CONTRIBUTING.md, examples/**, .github/
 
 ## decisions
 - 2026-10-09: One payload allowlist (packages/kitchen/src/runtime/payload-allowlist.mjs) serves both the Map and Kitchen. It sits under packages/kitchen/src/runtime so a single file ships in both npm packages, and the Map imports it by relative path. Every browser-bound field is listed per event kind or hook, absolute paths are reduced to project-relative, Kitchen project ids become opaque handles, and token-like strings are redacted. The Map's /whoami, /suggest and /spawn endpoints stay outside it for now and are tracked as an open task under runs.
+- 2026-10-09: Fix the three coexistence and acknowledgement defects named in docs/OBSERVABILITY.md (ATL-4). Kitchen's native todo list changes only on a confirmed tool result and always outranks Map board todos; Map recognises only its own hook command, so both hook setups coexist. The doc's known-limits paragraphs are removed now that this holds.
+- 2026-10-09: OJ Labs fork hygiene (ATL-7). Leave upstream's kitchen.yml untouched so upstream merges stay clean; add a separate fork-checks.yml that runs the same steps on every pull request (upstream's runs only for changed kitchen paths), with a test that fails if the two drift apart. Credit upstream in ATTRIBUTION.md, list fork tickets in the README, document the fetch-and-merge routine in docs/UPSTREAM-SYNC.md. No package renames, nothing published to npm from the fork, no new dependencies.
 - 2026-09-09: Review the public repository for concrete reliability and setup issues, recording reproducible findings separately from planned features. Describe Agenttrail as the local observability project with two views: Agenttrail Map for project structure and activity, and Agenttrail Kitchen for native tasks and role contributions. Document their current independent services and differing provider support rather than implying a unified event backend or agent orchestration.
 - 2026-09-08: Publish Kitchen to npm now that the owner has restored registry login. Use alpha.3 for the refreshed package README instead of changing the existing alpha.2 archive; keep the experimental version explicit and use the latest tag so npx agenttrail-kitchen . works. Verify the exact public package from a fresh consumer environment, then publish matching GitHub release assets and setup instructions. The owner chose browser setup first; no editor extension is being added.
 - 2026-09-08: Audit the downloadable public Kitchen release from an isolated consumer install, verify real repo observation and adapter behavior, fix launch gaps, and refresh the root README with Kitchen screenshots and exact install/support instructions. No editor extension currently exists; clarify whether the owner wants one built or wants the working browser setup documented. Keep unknown integration status explicit.
