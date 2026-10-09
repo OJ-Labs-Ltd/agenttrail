@@ -5,8 +5,8 @@ import { codexEvents, claudeEvents } from './events.mjs';
 const LIMIT=2*1024*1024,DAY=86400_000;
 async function entries(dir){try{return await fs.readdir(dir,{withFileTypes:true});}catch{return [];}}
 export class LogObserver {
-  constructor(home,store,{codexHome=path.join(home,'.codex'),claudeHome=path.join(home,'.claude')}={}){
-    this.home=home;this.codexHome=codexHome;this.claudeHome=claudeHome;this.store=store;this.files=new Map();this.available={codex:false,claude:false};this.lastDiscovery=0;this.recentProjects=[];this.limited=false;
+  constructor(home,store,{codexHome=path.join(home,'.codex'),claudeHome=path.join(home,'.claude'),discovery=true,aliases=[]}={}){
+    this.home=home;this.aliases=aliases;this.discovery=discovery;this.headers=new Map();this.codexHome=codexHome;this.claudeHome=claudeHome;this.store=store;this.files=new Map();this.available={codex:false,claude:false};this.lastDiscovery=0;this.recentProjects=[];this.limited=false;
   }
   async metadata(file,provider){
     let handle;try{
@@ -28,14 +28,21 @@ export class LogObserver {
       for(const f of await entries(path.join(base,y.name,m.name,d.name)))if(f.isFile()&&f.name.endsWith('.jsonl')){if(candidates.length>=10000){this.limited=true;break;}candidates.push({file:path.join(base,y.name,m.name,d.name,f.name),provider:'codex'});}
     }
     const claude=path.join(this.claudeHome,'projects');
-    for(const dir of (await entries(claude)).filter(e=>e.isDirectory()).slice(0,1000))for(const f of await entries(path.join(claude,dir.name)))if(f.isFile()&&f.name.endsWith('.jsonl')){if(candidates.length>=12000){this.limited=true;break;}candidates.push({file:path.join(claude,dir.name,f.name),provider:'claude'});}
-    const recent=[];for(const c of candidates){try{const stat=await fs.stat(c.file);this.available[c.provider]=true;if(Date.now()-stat.mtimeMs<DAY)recent.push({...c,stat});}catch{}}
-    const found=[];
+    // Claude names each directory after its cwd, so directories outside the watched roots are never listed or opened.
+    // Roots are real paths but Claude names a directory after the cwd as launched, so the paths the user gave (aliases) count too.
+    // ponytail: assumes Claude's non-alphanumeric-to-dash naming and 200-character cut-off. The encoding cannot tell /a/foo/bar from /a/foo-bar, so a sibling such as /a/foo-bar has its header opened and then discarded by the cwd check; read each file's cwd instead if that ever matters.
+    const prefixes=[...this.store.roots,...this.aliases].map(r=>r.replace(/[^a-zA-Z0-9]/g,'-').slice(0,200));
+    for(const dir of (await entries(claude)).filter(e=>e.isDirectory()&&prefixes.some(p=>e.name.startsWith(p))).slice(0,1000))for(const f of await entries(path.join(claude,dir.name)))if(f.isFile()&&f.name.endsWith('.jsonl')){if(candidates.length>=12000){this.limited=true;break;}candidates.push({file:path.join(claude,dir.name,f.name),provider:'claude'});}
+    const recent=[];for(const c of candidates){try{const stat=await fs.stat(c.file);if(Date.now()-stat.mtimeMs<DAY)recent.push({...c,stat});}catch{}}
+    const found=[],headers=new Map();
     for(const c of recent.sort((a,b)=>b.stat.mtimeMs-a.stat.mtimeMs).slice(0,240)){
-      let f=this.files.get(c.file);const meta=f?.meta||await this.metadata(c.file,c.provider);if(!meta)continue;
+      let f=this.files.get(c.file);const meta=f?.meta||this.headers.get(c.file)||await this.metadata(c.file,c.provider);if(!meta)continue;
+      // Codex rollouts are filed by date, so only the header says which project one belongs to. It is remembered so an unwatched file is not reopened every cycle, and dropped from everything else.
+      headers.set(c.file,meta);if(!this.store.rootFor(meta.cwd))continue;this.available[c.provider]=true;
       if(!f)f={...c,offset:0,partial:'',meta,watched:false};else f.stat=c.stat;
       found.push(f);
     }
+    this.headers=headers;
     const projects=new Map();for(const f of found){const prior=projects.get(f.meta.cwd)||{path:f.meta.cwd,name:path.basename(f.meta.cwd),providers:[],lastSeenAt:0};if(!prior.providers.includes(f.provider))prior.providers.push(f.provider);prior.lastSeenAt=Math.max(prior.lastSeenAt,f.stat.mtimeMs);projects.set(prior.path,prior);}
     this.recentProjects=[...projects.values()].sort((a,b)=>b.lastSeenAt-a.lastSeenAt).slice(0,24);
     // Keep watched streams ahead of discovery-only candidates under the read limit.
@@ -44,6 +51,7 @@ export class LogObserver {
     this.files=new Map(found.slice(0,120).map(f=>[f.file,f]));
   }
   async poll(){
+    if(!this.discovery)return; // Every log lives under the home directory, so there is nothing else to read.
     if(Date.now()-this.lastDiscovery>5000){this.lastDiscovery=Date.now();await this.discover();}
     for(const f of [...this.files.values()].sort((a,b)=>a.stat.mtimeMs-b.stat.mtimeMs)){
       let handle;

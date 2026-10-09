@@ -70,4 +70,4 @@ The package smoke check installs into an isolated temporary folder without lifec
 
 MIT for the project code and original kitchen assets. [Third-party notices](docs/THIRD-PARTY.md) cover Three.js and Nunito. The game-reference screenshots and soundtrack are not included; this is an independent, cooking-game-inspired project.
 
-The service binds to 127.0.0.1. Rendering, fonts and event delivery stay local. There is no account, telemetry, transcript upload or extra model call. Only allowlisted activity metadata reaches the browser; task titles and project paths may still be visible when you record or share your screen.
+The service binds to 127.0.0.1. Rendering, fonts and event delivery stay local. There is no account, telemetry, transcript upload or extra model call. Only allowlisted activity metadata reaches the browser; task titles and project paths may still be visible when you record or share your screen. Provider logs are read only for the folders you watch; `--sources` and `--no-discovery` narrow that further ([exactly what is read](../../docs/kitchen/CONNECTING.md#local-scope-and-discovery-limits)).
