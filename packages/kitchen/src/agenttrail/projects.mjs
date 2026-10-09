@@ -33,9 +33,11 @@ export function matchesGlob(file,glob) {
 }
 const ignored=f=>/(^|\/)(\.git|node_modules|\.office|\.agenttrail|dist|coverage)(\/|$)|\.DS_Store|\.(swp|tmp)$/.test(f);
 export class Projects {
-  constructor(roots,home,store,{discovery=true,watchFiles=true}={}){this.roots=roots;this.home=home;this.store=store;this.discovery=discovery;this.watchFiles=watchFiles;this.data=new Map();this.watchers=[];this.runContext=new Map();this.queues=new WorkflowQueues();this.profiles=new CrewProfiles();}
+  constructor(roots,home,store,{discovery=true,watchFiles=true,feedOnly=false}={}){this.roots=roots;this.home=home;this.store=store;this.discovery=discovery;this.watchFiles=watchFiles;this.feedOnly=feedOnly;this.data=new Map();this.watchers=[];this.runContext=new Map();this.queues=new WorkflowQueues();this.profiles=new CrewProfiles();}
   watch(root){
     if(this.data.has(root))return;
+    // Feed-only: the project is only a name the feeder's events land on, so nothing under the root is read or watched.
+    if(this.feedOnly){this.data.set(root,{id:root,name:path.basename(root),components:[],activity:[],boardUrl:null,contextSource:'feed',watchStatus:'feed',planStamp:-1,workflow:null,...kitchenMap([])});return;}
     const project={id:root,name:path.basename(root),components:[],activity:[],boardUrl:null,contextSource:'plan',watchStatus:'watching',planStamp:-1};this.data.set(root,project);
     if(!this.watchFiles){project.watchStatus='plan only';return;}
     try{this.watchers.push(fs.watch(root,{recursive:true},(_,file)=>{
@@ -44,6 +46,7 @@ export class Projects {
     }));}catch{project.watchStatus='plan only';}
   }
   async poll(){
+    if(this.feedOnly){for(const root of this.roots)this.watch(root);return;}
     await Promise.all(this.roots.map(async root=>{
       this.watch(root);const p=this.data.get(root);
       try{const stat=await fsp.stat(path.join(root,'PLAN.md'));if(stat.mtimeMs!==p.planStamp){p.components=parsePlan((await fsp.readFile(path.join(root,'PLAN.md'),'utf8')).slice(0,512_000));p.planStamp=stat.mtimeMs;}}catch{p.components=[];}

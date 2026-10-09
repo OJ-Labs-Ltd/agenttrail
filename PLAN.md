@@ -179,6 +179,21 @@ links: [plan-reader, runs, map]
 - [x] Confirm plan updates before serving completed dishes {#kitchen-plan-acknowledgements}
   by: claude
   tech: Codex update_plan and Claude log TodoWrite now emit tasks on the successful tool result, not the call; rejected or interrupted calls keep the last confirmed plan.
+- [x] Check every incoming feed event against a published schema {#kitchen-feed-schema}
+  by: claude
+  tech: JSON Schema for the hook event and snapshot v2 under packages/kitchen, plus a small built-in validator that rejects unknown fields; no new dependency (ATL-2).
+- [x] Run the kitchen with no filesystem reading at all {#kitchen-feed-server}
+  by: claude
+  tech: startOffice feed-only option — no watcher, no log discovery, no setup/apply routes; POST /api/hook and /api/artifact need a bearer token; outputs are /api/bootstrap, /api/state and /api/events only (ATL-2).
+- [x] Refuse to start the feed-only kitchen without a token {#kitchen-feed-cli}
+  by: claude
+  tech: --feed-only flag in the agenttrail-kitchen CLI; exits with a clear message when no token is supplied (ATL-2).
+- [x] Prove the feed-only kitchen reads nothing outside its package {#kitchen-feed-tests}
+  by: claude
+  tech: scripted events through the intake, snapshot and stream asserted against the schema, and an fs-read spy covering paths outside the package (ATL-2).
+- [x] Document the feed contract for outside feeders {#kitchen-feed-docs}
+  by: claude
+  tech: docs/kitchen/FEED.md field by field for normalizeHook input and snapshot v2; docs/OBSERVABILITY.md updated to match (ATL-2).
 - [x] Read only the logs of the folders you watch {#kitchen-scoped-logs}
   by: claude
   tech: LogObserver keeps a session only when its recorded cwd is inside a watched root; --sources hooks,logs,files and --no-discovery switch evidence off, and Map honours --sources and suggests no other repositories
@@ -286,6 +301,7 @@ files: [README.md, docs/**, package.json, CONTRIBUTING.md, examples/**, .github/
   tech: README definition, sentence-case headings, npm metadata, GitHub description and topics
 
 ## decisions
+- 2026-10-09: ATL-2 — Kitchen gains a `--feed-only` mode for OJ Labs Director: no file watching, no log discovery, no setup/apply routes, so it reads nothing from the host. Its only inputs are POST /api/hook and /api/artifact behind a bearer token that must be supplied (it refuses to start without one), validated against a JSON Schema that rejects unknown fields; its only outputs are /api/bootstrap, /api/state and /api/events. Upstream names and structure are kept so later merges from sodiumsun/agenttrail stay easy, and no dependency is added. The schema and docs/kitchen/FEED.md are the contract Director builds against. The work lands as tasks under the existing Kitchen component, not a new one.
 - 2026-10-09: Log discovery is scoped to the watched project by default. Sessions whose recorded cwd is outside a watched root are not parsed, tracked, counted or listed, so the folder picker only suggests watched projects. --no-discovery stops all reads under the home directory. Codex rollouts are filed by date, so their 64 KiB header is still opened once to read the cwd; this is documented rather than hidden. Review cycle 1: the Claude directory filter also accepts the paths the user gave (aliases, saved in projects.json), because Claude names a directory after the cwd as launched and roots are real paths. Observer `available` now means a watched-folder session exists; the UI does not read it. /api/artifact is no longer blocked by --sources without hooks. Map honours --sources too; this is extra surface to accept or trim. Review cycle 2: the CLI now sends the paths as typed on attach and saves them beside the real paths in projects.json, so symlink aliases survive attach and --saved restarts. Map's /suggest, which listed other repositories from ~/.agenttrail and sibling git folders, now always answers empty; Map's `--no-discovery` is accepted and changes nothing. Owner to accept the documented deviation that Codex rollout headers and sibling-prefix Claude directories are still opened to read their cwd.
 - 2026-10-09: Fix the three coexistence and acknowledgement defects named in docs/OBSERVABILITY.md (ATL-4). Kitchen's native todo list changes only on a confirmed tool result and always outranks Map board todos; Map recognises only its own hook command, so both hook setups coexist. The doc's known-limits paragraphs are removed now that this holds.
 - 2026-10-09: OJ Labs fork hygiene (ATL-7). Leave upstream's kitchen.yml untouched so upstream merges stay clean; add a separate fork-checks.yml that runs the same steps on every pull request (upstream's runs only for changed kitchen paths), with a test that fails if the two drift apart. Credit upstream in ATTRIBUTION.md, list fork tickets in the README, document the fetch-and-merge routine in docs/UPSTREAM-SYNC.md. No package renames, nothing published to npm from the fork, no new dependencies.

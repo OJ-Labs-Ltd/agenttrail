@@ -1,0 +1,501 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/OJ-Labs-Ltd/agenttrail/packages/kitchen/schema/feed.schema.json",
+  "title": "Agenttrail Kitchen feed contract",
+  "$defs": {
+    "eventKind": {
+      "enum": ["session-start","session-end","turn-start","turn-end","tool-start","tool-end","permission","input","interrupted","activity","unknown","role","observation"]
+    },
+    "hookTask": {
+      "type": "object",
+      "properties": {
+        "id": {"type":"string","maxLength":100},
+        "title": {"type":"string","maxLength":180},
+        "status": {"enum":["pending","in_progress","completed"]}
+      },
+      "required": ["title","status"],
+      "additionalProperties": false
+    },
+    "hookTaskChange": {
+      "type": "object",
+      "properties": {
+        "id": {"type":"string","maxLength":100},
+        "title": {"type":"string","maxLength":180},
+        "status": {"enum":["pending","in_progress","completed","deleted"]}
+      },
+      "required": ["id","status"],
+      "additionalProperties": false
+    },
+    "hookWork": {
+      "type": "object",
+      "properties": {
+        "category": {"enum":["coordinate","research","build","simulation","review","publish","execute"]},
+        "label": {"type":"string"},
+        "file": {"type":"string"},
+        "completed": {"type":"boolean"}
+      },
+      "required": ["category"],
+      "additionalProperties": false
+    },
+    "hookEvent": {
+      "type": "object",
+      "description": "One lifecycle event from a coding agent. This is what normalizeHook returns and what POST /api/hook accepts.",
+      "properties": {
+        "id": {"type":"string","maxLength":200,"pattern":"^[\\s\\S]+$","description":"Unique per provider; a repeat is ignored. normalizeHook takes it from office_event_id."},
+        "provider": {"enum":["claude","codex","cursor"]},
+        "sessionId": {"type":"string","maxLength":200,"pattern":"^[\\s\\S]+$"},
+        "parentId": {"type":["string","null"],"maxLength":200,"description":"Parent session of a subagent."},
+        "cwd": {"type":"string","description":"Absolute path; must sit inside a watched root or the event is not accepted."},
+        "kind": {"enum":["session-start","session-end","turn-start","turn-end","tool-start","tool-end","permission","input","interrupted","activity","unknown","role","observation"]},
+        "turnId": {"type":"string","description":"A new value retires the previous turn."},
+        "toolId": {"type":"string"},
+        "tool": {"type":"string","maxLength":80},
+        "file": {"type":"string","maxLength":500,"description":"Absolute, or relative to cwd. Ignored when it resolves outside the watched root."},
+        "error": {"type":"boolean"},
+        "tasks": {"type":"array","items":{"$ref":"#/$defs/hookTask"},"maxItems":24,"description":"The full native task list for the session, or only the changed tasks when tasksPartial is true."},
+        "tasksPartial": {"type":"boolean"},
+        "planId": {"type":"string","maxLength":100},
+        "outcomeId": {"type":"string","maxLength":100},
+        "outcomeTitle": {"type":"string","maxLength":180},
+        "taskChange": {"$ref":"#/$defs/hookTaskChange"},
+        "work": {"$ref":"#/$defs/hookWork"},
+        "roleId": {"type":["string","null"],"pattern":"^[\\w-]{1,100}$","description":"With kind \"role\": the workflow role bound to the session, or null to clear the binding."},
+        "workflowId": {"type":"string","maxLength":100},
+        "runId": {"type":"string","maxLength":100},
+        "itemId": {"type":"string","maxLength":180},
+        "orderId": {"type":"string","maxLength":100},
+        "at": {"type":"number","description":"Overwritten by the server with its own clock; accepted so normalizeHook output validates unchanged."},
+        "source": {"type":"string","description":"Overwritten by the server with \"hook\"; accepted so normalizeHook output validates unchanged."}
+      },
+      "required": ["id","provider","sessionId","cwd","kind"],
+      "additionalProperties": false
+    },
+    "artifactEvent": {
+      "type": "object",
+      "description": "An artifact produced, offered, received or failed. POST /api/artifact accepts this. Kinds other than \"produced\" also need handoffId, recipientProvider and recipientSessionId.",
+      "properties": {
+        "id": {"type":"string","pattern":"^[\\w.:-]{1,220}$"},
+        "artifactId": {"type":"string","pattern":"^[\\w.:-]{1,220}$"},
+        "revisionId": {"type":"string","pattern":"^[\\w.:-]{1,220}$"},
+        "provider": {"enum":["claude","codex","cursor"]},
+        "sessionId": {"type":"string","pattern":"^[\\w.:-]{1,220}$"},
+        "cwd": {"type":"string"},
+        "kind": {"enum":["produced","offered","received","failed"]},
+        "type": {"enum":["json","image","text","code","table"]},
+        "file": {"type":"string"},
+        "label": {"type":"string","maxLength":180},
+        "orderId": {"type":"string","pattern":"^[\\w.:-]{1,220}$"},
+        "handoffId": {"type":"string","pattern":"^[\\w.:-]{1,220}$"},
+        "recipientProvider": {"enum":["claude","codex","cursor"]},
+        "recipientSessionId": {"type":"string","pattern":"^[\\w.:-]{1,220}$"},
+        "at": {"type":"number","description":"Overwritten by the server with its own clock."},
+        "source": {"type":"string","description":"Overwritten by the server with \"hook\"."}
+      },
+      "required": ["id","artifactId","revisionId","provider","sessionId","cwd","kind"],
+      "additionalProperties": false
+    },
+    "sessionState": {
+      "enum": ["unknown","working","reading","writing","executing","error","permission","input","complete","interrupted","offline"]
+    },
+    "recentEvent": {
+      "type": "object",
+      "properties": {
+        "id": {"type":"string"},
+        "at": {"type":"integer"},
+        "kind": {"$ref":"#/$defs/eventKind"},
+        "tool": {"type":"string"},
+        "file": {"type":["string","null"]},
+        "source": {"type":"string"}
+      },
+      "required": ["id","at","kind"],
+      "additionalProperties": false
+    },
+    "workContext": {
+      "type": "object",
+      "properties": {
+        "category": {"enum":["coordinate","research","build","simulation","review","publish","execute"]},
+        "label": {"type":"string","maxLength":120},
+        "file": {"type":["string","null"]},
+        "at": {"type":"integer"},
+        "completed": {"type":"boolean"},
+        "toolId": {"type":["string","null"]}
+      },
+      "required": ["category","label","file","at","completed","toolId"],
+      "additionalProperties": false
+    },
+    "association": {
+      "type": "object",
+      "properties": {
+        "kind": {"enum":["unknown","inferred","explicit","configured"]},
+        "source": {"type":["string","null"]},
+        "reason": {"type":"string"},
+        "componentId": {"type":["string","null"]}
+      },
+      "required": ["kind","reason"],
+      "additionalProperties": false
+    },
+    "roleBinding": {
+      "type": "object",
+      "properties": {
+        "roleId": {"type":"string"},
+        "workflowId": {"type":["string","null"]},
+        "runId": {"type":["string","null"]},
+        "itemId": {"type":["string","null"]},
+        "orderId": {"type":["string","null"]},
+        "at": {"type":"integer"}
+      },
+      "required": ["roleId","workflowId","runId","itemId","orderId","at"],
+      "additionalProperties": false
+    },
+    "componentRef": {
+      "type": "object",
+      "properties": {
+        "id": {"type":"string"},
+        "title": {"type":"string"}
+      },
+      "required": ["id","title"],
+      "additionalProperties": false
+    },
+    "task": {
+      "type": "object",
+      "properties": {
+        "id": {"type":"string","maxLength":100},
+        "title": {"type":"string","maxLength":180},
+        "status": {"enum":["pending","in_progress","completed"]}
+      },
+      "required": ["title","status"],
+      "additionalProperties": false
+    },
+    "recentWork": {
+      "type": "object",
+      "properties": {
+        "category": {"enum":["coordinate","research","build","simulation","review","publish","execute"]},
+        "label": {"type":"string","maxLength":120},
+        "file": {"type":["string","null"]},
+        "at": {"type":"integer"},
+        "completed": {"type":"boolean"},
+        "toolId": {"type":["string","null"]},
+        "sessionId": {"type":"string"},
+        "provider": {"enum":["claude","codex","cursor"]}
+      },
+      "required": ["category","label","file","at","completed","toolId","sessionId","provider"],
+      "additionalProperties": false
+    },
+    "executor": {
+      "type": "object",
+      "description": "One agent session, as Projects.enrich returns it.",
+      "properties": {
+        "id": {"type":"string","description":"provider:sessionId"},
+        "sessionId": {"type":"string"},
+        "provider": {"enum":["claude","codex","cursor"]},
+        "project": {"type":"string","description":"Absolute path of the watched root."},
+        "cwd": {"type":"string"},
+        "startedAt": {"type":"integer"},
+        "lastEventAt": {"type":"integer"},
+        "state": {"$ref":"#/$defs/sessionState"},
+        "source": {"type":"string"},
+        "parentId": {"type":["string","null"]},
+        "recent": {"type":"array","items":{"$ref":"#/$defs/recentEvent"},"maxItems":12},
+        "tool": {"type":"string"},
+        "file": {"type":["string","null"]},
+        "fileAt": {"type":["integer","null"]},
+        "currentFile": {"type":["string","null"]},
+        "turnId": {"type":["string","null"]},
+        "ended": {"type":"boolean"},
+        "roleBinding": {"type":["object","null"],"properties":{"roleId":{"type":"string"},"workflowId":{"type":["string","null"]},"runId":{"type":["string","null"]},"itemId":{"type":["string","null"]},"orderId":{"type":["string","null"]},"at":{"type":"integer"}},"required":["roleId","workflowId","runId","itemId","orderId","at"],"additionalProperties":false},
+        "roleBindingAt": {"type":"integer"},
+        "workContext": {"type":["object","null"],"properties":{"category":{"enum":["coordinate","research","build","simulation","review","publish","execute"]},"label":{"type":"string","maxLength":120},"file":{"type":["string","null"]},"at":{"type":"integer"},"completed":{"type":"boolean"},"toolId":{"type":["string","null"]}},"required":["category","label","file","at","completed","toolId"],"additionalProperties":false},
+        "workHistory": {"type":"array","items":{"$ref":"#/$defs/workContext"},"maxItems":24},
+        "turnStartedAt": {"type":"integer"},
+        "sessionTasks": {"type":"array","items":{"$ref":"#/$defs/task"},"maxItems":24},
+        "taskContextAt": {"type":"integer"},
+        "planId": {"type":["string","null"]},
+        "outcomeId": {"type":["string","null"]},
+        "outcomeTitle": {"type":["string","null"]},
+        "activeToolCount": {"type":"integer"},
+        "freshness": {"enum":["recent","quiet"]},
+        "component": {"type":["object","null"],"properties":{"id":{"type":"string"},"title":{"type":"string"}},"required":["id","title"],"additionalProperties":false},
+        "componentCandidates": {"type":"array","items":{"type":"string"}},
+        "association": {"$ref":"#/$defs/association"},
+        "planAvailable": {"type":"boolean"},
+        "taskSource": {"type":["string","null"]},
+        "currentTask": {"type":["object","null"],"properties":{"id":{"type":"string","maxLength":100},"title":{"type":"string","maxLength":180},"status":{"enum":["pending","in_progress","completed"]}},"required":["title","status"],"additionalProperties":false},
+        "contextAt": {"type":["integer","null"]}
+      },
+      "required": ["id","sessionId","provider","project","cwd","startedAt","lastEventAt","state","source","parentId","recent","tool","file","fileAt","currentFile","turnId","ended","activeToolCount","freshness","component","componentCandidates","association","sessionTasks","planAvailable","taskSource","currentTask","contextAt"],
+      "additionalProperties": false
+    },
+    "crewMember": {
+      "type": "object",
+      "description": "A session, or a workflow role with the sessions currently filling it (workflowCrew).",
+      "properties": {
+        "id": {"type":"string","description":"provider:sessionId"},
+        "sessionId": {"type":"string"},
+        "provider": {"type":["string","null"],"enum":["claude","codex","cursor",null]},
+        "project": {"type":"string","description":"Absolute path of the watched root."},
+        "cwd": {"type":"string"},
+        "startedAt": {"type":"integer"},
+        "lastEventAt": {"type":["integer","null"]},
+        "state": {"enum":["unknown","working","reading","writing","executing","error","permission","input","complete","interrupted","offline","idle"]},
+        "source": {"type":"string"},
+        "parentId": {"type":["string","null"]},
+        "recent": {"type":"array","items":{"$ref":"#/$defs/recentEvent"},"maxItems":12},
+        "tool": {"type":"string"},
+        "file": {"type":["string","null"]},
+        "fileAt": {"type":["integer","null"]},
+        "currentFile": {"type":["string","null"]},
+        "turnId": {"type":["string","null"]},
+        "ended": {"type":"boolean"},
+        "roleBinding": {"type":["object","null"],"properties":{"roleId":{"type":"string"},"workflowId":{"type":["string","null"]},"runId":{"type":["string","null"]},"itemId":{"type":["string","null"]},"orderId":{"type":["string","null"]},"at":{"type":"integer"}},"required":["roleId","workflowId","runId","itemId","orderId","at"],"additionalProperties":false},
+        "roleBindingAt": {"type":"integer"},
+        "workContext": {"type":["object","null"],"properties":{"category":{"enum":["coordinate","research","build","simulation","review","publish","execute"]},"label":{"type":"string","maxLength":120},"file":{"type":["string","null"]},"at":{"type":"integer"},"completed":{"type":"boolean"},"toolId":{"type":["string","null"]}},"required":["category","label","file","at","completed","toolId"],"additionalProperties":false},
+        "workHistory": {"type":"array","items":{"$ref":"#/$defs/workContext"},"maxItems":24},
+        "turnStartedAt": {"type":"integer"},
+        "sessionTasks": {"type":"array","items":{"$ref":"#/$defs/task"},"maxItems":24},
+        "taskContextAt": {"type":"integer"},
+        "planId": {"type":["string","null"]},
+        "outcomeId": {"type":["string","null"]},
+        "outcomeTitle": {"type":["string","null"]},
+        "activeToolCount": {"type":"integer"},
+        "freshness": {"enum":["recent","quiet"]},
+        "component": {"type":["object","null"],"properties":{"id":{"type":"string"},"title":{"type":"string"}},"required":["id","title"],"additionalProperties":false},
+        "componentCandidates": {"type":"array","items":{"type":"string"}},
+        "association": {"$ref":"#/$defs/association"},
+        "planAvailable": {"type":"boolean"},
+        "taskSource": {"type":["string","null"]},
+        "currentTask": {"type":["object","null"],"properties":{"id":{"type":"string","maxLength":100},"title":{"type":"string","maxLength":180},"status":{"enum":["pending","in_progress","completed"]}},"required":["title","status"],"additionalProperties":false},
+        "contextAt": {"type":["integer","null"]},
+        "roleId": {"type":"string"},
+        "name": {"type":"string"},
+        "roleComponents": {"type":"array","items":{"type":"string"}},
+        "roleOrigin": {"enum":["configured","inferred"]},
+        "roleDescription": {"type":"string"},
+        "roleFiles": {"type":"array","items":{"type":"string"}},
+        "recentWork": {"$ref":"#/$defs/recentWork"},
+        "roleStatus": {"type":"string"},
+        "queueCount": {"type":"integer"},
+        "workingCount": {"type":"integer"},
+        "executors": {"type":"array","items":{"$ref":"#/$defs/executor"}},
+        "activityComponentId": {"type":["string","null"]},
+        "unlinkedRole": {"type":"boolean"}
+      },
+      "required": ["id","sessionId","provider","project","state","source","freshness","ended","lastEventAt","startedAt","recent","currentTask","component","association"],
+      "additionalProperties": false
+    },
+    "counts": {
+      "type": "object",
+      "properties": {
+        "total": {"type":"integer"},
+        "done": {"type":"integer"},
+        "active": {"type":"integer"},
+        "blocked": {"type":"integer"}
+      },
+      "required": ["total","done","active","blocked"],
+      "additionalProperties": false
+    },
+    "planTask": {
+      "type": "object",
+      "properties": {
+        "id": {"type":["string","null"]},
+        "title": {"type":"string"},
+        "state": {"enum":[" ","x","~","!"]},
+        "by": {"type":"string"},
+        "from": {"type":"string"},
+        "componentId": {"type":"string"},
+        "key": {"type":"string"}
+      },
+      "required": ["id","title","state"],
+      "additionalProperties": false
+    },
+    "queueItem": {
+      "type": "object",
+      "properties": {
+        "id": {"type":"string"},
+        "file": {"type":"string"},
+        "title": {"type":"string"},
+        "subreddit": {"type":"string"},
+        "createdAt": {"type":["string","null"]},
+        "revision": {"type":"string"},
+        "verdict": {"enum":["SHIP","HOLD","REVISE","KILL",null]},
+        "stage": {"enum":["write","evaluate","queue","publisher","history","unknown"]},
+        "label": {"type":"string"},
+        "scheduledAt": {"type":["string","null"]},
+        "approved": {"type":"boolean"},
+        "stale": {"type":"boolean"}
+      },
+      "required": ["id","file","title","subreddit","createdAt","revision","verdict","stage","label","scheduledAt","approved","stale"],
+      "additionalProperties": false
+    },
+    "workflowRole": {
+      "type": "object",
+      "properties": {
+        "id": {"type":"string"},
+        "title": {"type":"string"},
+        "components": {"type":"array","items":{"type":"string"}},
+        "description": {"type":"string"},
+        "files": {"type":"array","items":{"type":"string"}},
+        "category": {"enum":["coordinate","research","build","simulation","review","publish",null]},
+        "origin": {"enum":["configured","inferred"]}
+      },
+      "required": ["id","title","components"],
+      "additionalProperties": false
+    },
+    "workflow": {
+      "type": ["object","null"],
+      "properties": {
+        "id": {"type":"string"},
+        "title": {"type":"string"},
+        "roles": {"type":"array","items":{"$ref":"#/$defs/workflowRole"}},
+        "adapter": {"enum":["reddit-loop",null]},
+        "origin": {"enum":["configured","inferred"]},
+        "evidence": {"type":"array","items":{"type":"string"}},
+        "stations": {"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"title":{"type":"string"},"roleId":{"type":"string"},"components":{"type":"array","items":{"type":"string"}},"kind":{"enum":["human","knowledge"]},"url":{"type":"string"}},"required":["id","title","components"],"additionalProperties":false}},
+        "queue": {"type":"object","properties":{"available":{"type":"boolean"},"items":{"type":"array","items":{"$ref":"#/$defs/queueItem"}},"blocked":{"type":"boolean"},"summary":{"type":"string"},"counts":{"type":"object","properties":{"write":{"type":"integer"},"evaluate":{"type":"integer"},"queue":{"type":"integer"},"publisher":{"type":"integer"},"history":{"type":"integer"},"unknown":{"type":"integer"}},"required":["write","evaluate","queue","publisher","history","unknown"],"additionalProperties":false}},"required":["available","items","summary"],"additionalProperties":false}
+      },
+      "required": ["id","title","roles","adapter","stations"],
+      "additionalProperties": false
+    },
+    "project": {
+      "type": "object",
+      "properties": {
+        "id": {"type":"string"},
+        "name": {"type":"string"},
+        "components": {"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"title":{"type":"string"},"files":{"type":"array","items":{"type":"string"}},"tasks":{"type":"array","items":{"$ref":"#/$defs/planTask"}},"needs":{"type":"array","items":{"type":"string"}},"links":{"type":"array","items":{"type":"string"}},"kind":{"enum":["human","knowledge"]},"url":{"type":"string"}},"required":["id","title","files","tasks","needs","links"],"additionalProperties":false}},
+        "activity": {"type":"array","items":{"type":"object","properties":{"file":{"type":"string"},"at":{"type":"integer"}},"required":["file","at"],"additionalProperties":false},"maxItems":10},
+        "boardUrl": {"type":["string","null"]},
+        "contextSource": {"enum":["plan","agenttrail","feed"]},
+        "watchStatus": {"enum":["watching","plan only","feed"]},
+        "kitchens": {"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"title":{"type":"string"},"components":{"type":"array","items":{"type":"string"}},"counts":{"$ref":"#/$defs/counts"}},"required":["id","title","components","counts"],"additionalProperties":false}},
+        "deliverables": {"type":"array","items":{"type":"object","properties":{"id":{"type":"string"},"title":{"type":"string"},"icon":{"enum":["map","image","gear","box","network"]},"tasks":{"type":"array","items":{"$ref":"#/$defs/planTask"}},"missing":{"type":"array","items":{"type":"string"}},"source":{"enum":["configured","component"]},"counts":{"$ref":"#/$defs/counts"},"kitchenIds":{"type":"array","items":{"type":"string"}},"status":{"enum":["unknown","blocked","complete","active","planned"]}},"required":["id","title","icon","tasks","missing","source","counts","kitchenIds","status"],"additionalProperties":false}},
+        "warnings": {"type":"array","items":{"type":"string"}},
+        "workflow": {"$ref":"#/$defs/workflow"}
+      },
+      "required": ["id","name","components","activity","boardUrl","contextSource","watchStatus","kitchens","deliverables","warnings","workflow"],
+      "additionalProperties": false
+    },
+    "order": {
+      "type": "object",
+      "properties": {
+        "id": {"type":"string"},
+        "number": {"type":"integer"},
+        "project": {"type":"string"},
+        "sessionId": {"type":"string"},
+        "provider": {"enum":["claude","codex","cursor"]},
+        "scope": {"type":"string"},
+        "nativeId": {"type":["string","null"]},
+        "title": {"type":"string"},
+        "status": {"enum":["pending","in_progress","completed"]},
+        "createdAt": {"type":"integer"},
+        "completedAt": {"type":["integer","null"]},
+        "completionVersion": {"type":"integer"},
+        "contributors": {"type":"array","items":{"type":"object","properties":{"identity":{"type":"string"},"chefId":{"type":"string"},"roleId":{"type":["string","null"]},"name":{"type":"string"},"sessionId":{"type":"string"},"provider":{"enum":["claude","codex","cursor"]},"association":{"$ref":"#/$defs/association"},"firstAt":{"type":"integer"},"lastAt":{"type":"integer"}},"required":["identity","chefId","roleId","name","sessionId","provider","association","firstAt","lastAt"],"additionalProperties":false},"maxItems":24},
+        "history": {"type":"array","items":{"type":"object","properties":{"revision":{"type":"integer"},"at":{"type":"integer"},"title":{"type":"string"},"status":{"enum":["pending","in_progress","completed","withdrawn"]}},"required":["at","title","status"],"additionalProperties":false},"maxItems":24},
+        "source": {"type":"string"},
+        "withdrawn": {"type":"boolean"},
+        "index": {"type":"integer"},
+        "revision": {"type":"integer"},
+        "updatedAt": {"type":"integer"},
+        "outcomeId": {"type":["string","null"]},
+        "outcomeTitle": {"type":["string","null"]},
+        "activeChefIds": {"type":"array","items":{"type":"string"}},
+        "activeSessionIds": {"type":"array","items":{"type":"string"}},
+        "tableId": {"type":"string"},
+        "attention": {"type":"boolean"}
+      },
+      "required": ["id","number","project","sessionId","provider","scope","nativeId","title","status","createdAt","completedAt","completionVersion","contributors","history","source","withdrawn","index","revision","updatedAt","outcomeId","outcomeTitle","activeChefIds","activeSessionIds","tableId"],
+      "additionalProperties": false
+    },
+    "artifact": {
+      "type": "object",
+      "properties": {
+        "id": {"type":"string"},
+        "artifactId": {"type":"string"},
+        "revisionId": {"type":"string"},
+        "project": {"type":"string"},
+        "producer": {"type":["string","null"]},
+        "producerRoleId": {"type":["string","null"]},
+        "orderId": {"type":["string","null"]},
+        "kind": {"enum":["json","image","text","code","table","unknown"]},
+        "file": {"type":["string","null"]},
+        "label": {"type":"string"},
+        "at": {"type":["integer","null"]},
+        "source": {"enum":["explicit relay","workflow files"]},
+        "eventId": {"type":"string"},
+        "componentId": {"type":"string"},
+        "workflowItem": {"$ref":"#/$defs/queueItem"}
+      },
+      "required": ["id","artifactId","revisionId","project","producer","kind","file","label","at","source"],
+      "additionalProperties": false
+    },
+    "transfer": {
+      "type": "object",
+      "properties": {
+        "id": {"type":"string"},
+        "handoffId": {"type":"string"},
+        "project": {"type":"string"},
+        "artifactKey": {"type":"string"},
+        "sender": {"type":"string"},
+        "recipient": {"type":"string"},
+        "state": {"enum":["offered","received","failed"]},
+        "at": {"type":"integer"},
+        "source": {"const":"explicit relay"},
+        "eventId": {"type":"string"},
+        "orderId": {"type":["string","null"]},
+        "senderRoleId": {"type":["string","null"]},
+        "recipientRoleId": {"type":["string","null"]}
+      },
+      "required": ["id","handoffId","project","artifactKey","sender","recipient","state","at","source","eventId","orderId","senderRoleId","recipientRoleId"],
+      "additionalProperties": false
+    },
+    "table": {
+      "type": "object",
+      "properties": {
+        "id": {"type":"string"},
+        "project": {"type":"string"},
+        "title": {"type":"string"},
+        "reported": {"type":"boolean"},
+        "orderIds": {"type":"array","items":{"type":"string"}},
+        "completedIds": {"type":"array","items":{"type":"string"}}
+      },
+      "required": ["id","project","title","reported","orderIds","completedIds"],
+      "additionalProperties": false
+    },
+    "unplanned": {
+      "type": "object",
+      "properties": {
+        "id": {"type":"string"},
+        "project": {"type":"string"},
+        "sessionId": {"type":"string"},
+        "title": {"type":"string"},
+        "state": {"$ref":"#/$defs/sessionState"},
+        "source": {"type":"string"},
+        "progress": {"const":null}
+      },
+      "required": ["id","project","sessionId","title","state","source","progress"],
+      "additionalProperties": false
+    },
+    "snapshot": {
+      "type": "object",
+      "description": "The version-2 state object served by GET /api/state, /api/bootstrap (plus a token) and each /api/events message.",
+      "properties": {
+        "app": {"const":"agenttrail-kitchen"},
+        "version": {"const":2},
+        "recentProjects": {"type":"array","items":{"type":"object","properties":{"path":{"type":"string"},"name":{"type":"string"},"providers":{"type":"array","items":{"enum":["claude","codex","cursor"]}},"lastSeenAt":{"type":"number"}},"required":["path","name","providers","lastSeenAt"],"additionalProperties":false},"maxItems":24},
+        "discoveryLimited": {"type":"boolean"},
+        "projects": {"type":"array","items":{"$ref":"#/$defs/project"}},
+        "crew": {"type":"array","items":{"$ref":"#/$defs/crewMember"}},
+        "executors": {"type":"array","items":{"$ref":"#/$defs/executor"}},
+        "orders": {"type":"array","items":{"$ref":"#/$defs/order"}},
+        "tables": {"type":"array","items":{"$ref":"#/$defs/table"}},
+        "unplanned": {"type":"array","items":{"$ref":"#/$defs/unplanned"}},
+        "artifacts": {"type":"array","items":{"$ref":"#/$defs/artifact"}},
+        "transfers": {"type":"array","items":{"$ref":"#/$defs/transfer"}},
+        "installed": {"type":"object","description":"Per watched root: whether the hook is installed for each provider.","additionalProperties":{"type":"object","properties":{"claude":{"type":"boolean"},"cursor":{"type":"boolean"}},"required":["claude","cursor"],"additionalProperties":false}},
+        "observers": {"type":"object","properties":{"codex":{"type":"object","properties":{"available":{"type":"boolean"},"mode":{"type":"string"}},"required":["available","mode"],"additionalProperties":false},"claude":{"type":"object","properties":{"available":{"type":"boolean"},"mode":{"type":"string"}},"required":["available","mode"],"additionalProperties":false},"cursor":{"type":"object","properties":{"mode":{"type":"string"}},"required":["mode"],"additionalProperties":false}},"required":["codex","claude","cursor"],"additionalProperties":false},
+        "observing": {"type":"boolean"}
+      },
+      "required": ["app","version","recentProjects","discoveryLimited","projects","crew","executors","orders","tables","unplanned","artifacts","transfers","installed","observers","observing"],
+      "additionalProperties": false
+    }
+  }
+}
