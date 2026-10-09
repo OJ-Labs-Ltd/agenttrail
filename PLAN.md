@@ -182,8 +182,8 @@ links: [plan-reader, runs, map]
 - [x] Run the kitchen with no filesystem reading at all {#kitchen-feed-server}
   by: claude
   tech: startOffice feed-only option — no watcher, no log discovery, no setup/apply routes; POST /api/hook and /api/artifact need a bearer token; outputs are /api/bootstrap, /api/state and /api/events only (ATL-2).
-- [ ] Refuse to start the feed-only kitchen without a token {#kitchen-feed-cli}
-  from: agent
+- [x] Refuse to start the feed-only kitchen without a token {#kitchen-feed-cli}
+  by: claude
   tech: --feed-only flag in the agenttrail-kitchen CLI; exits with a clear message when no token is supplied (ATL-2).
 - [ ] Prove the feed-only kitchen reads nothing outside its package {#kitchen-feed-tests}
   from: agent
