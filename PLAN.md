@@ -176,6 +176,21 @@ links: [plan-reader, runs, map]
   tech: Projects.enrich currently lets a newer general Map event replace a confirmed native task list with empty board todos and withdraw its dishes.
 - [ ] Confirm plan updates before serving completed dishes {#kitchen-plan-acknowledgements}
   tech: wait for successful Codex update_plan and legacy TodoWrite results; failed or interrupted calls must retain the last confirmed plan.
+- [ ] Check every incoming feed event against a published schema {#kitchen-feed-schema}
+  from: agent
+  tech: JSON Schema for the hook event and snapshot v2 under packages/kitchen, plus a small built-in validator that rejects unknown fields; no new dependency (ATL-2).
+- [ ] Run the kitchen with no filesystem reading at all {#kitchen-feed-server}
+  from: agent
+  tech: startOffice feed-only option — no watcher, no log discovery, no setup/apply routes; POST /api/hook and /api/artifact need a bearer token; outputs are /api/bootstrap, /api/state and /api/events only (ATL-2).
+- [ ] Refuse to start the feed-only kitchen without a token {#kitchen-feed-cli}
+  from: agent
+  tech: --feed-only flag in the agenttrail-kitchen CLI; exits with a clear message when no token is supplied (ATL-2).
+- [ ] Prove the feed-only kitchen reads nothing outside its package {#kitchen-feed-tests}
+  from: agent
+  tech: scripted events through the intake, snapshot and stream asserted against the schema, and an fs-read spy covering paths outside the package (ATL-2).
+- [ ] Document the feed contract for outside feeders {#kitchen-feed-docs}
+  from: agent
+  tech: docs/kitchen/FEED.md field by field for normalizeHook input and snapshot v2; docs/OBSERVABILITY.md updated to match (ATL-2).
 - [x] Bring the runnable kitchen into this repository {#kitchen-import}
   by: codex
   from: agent
@@ -273,6 +288,7 @@ files: [README.md, docs/**, package.json, CONTRIBUTING.md, examples/**, .github/
   tech: README definition, sentence-case headings, npm metadata, GitHub description and topics
 
 ## decisions
+- 2026-10-09: ATL-2 — Kitchen gains a `--feed-only` mode for OJ Labs Director: no file watching, no log discovery, no setup/apply routes, so it reads nothing from the host. Its only inputs are POST /api/hook and /api/artifact behind a bearer token that must be supplied (it refuses to start without one), validated against a JSON Schema that rejects unknown fields; its only outputs are /api/bootstrap, /api/state and /api/events. Upstream names and structure are kept so later merges from sodiumsun/agenttrail stay easy, and no dependency is added. The schema and docs/kitchen/FEED.md are the contract Director builds against. The work lands as tasks under the existing Kitchen component, not a new one.
 - 2026-09-09: Review the public repository for concrete reliability and setup issues, recording reproducible findings separately from planned features. Describe Agenttrail as the local observability project with two views: Agenttrail Map for project structure and activity, and Agenttrail Kitchen for native tasks and role contributions. Document their current independent services and differing provider support rather than implying a unified event backend or agent orchestration.
 - 2026-09-08: Publish Kitchen to npm now that the owner has restored registry login. Use alpha.3 for the refreshed package README instead of changing the existing alpha.2 archive; keep the experimental version explicit and use the latest tag so npx agenttrail-kitchen . works. Verify the exact public package from a fresh consumer environment, then publish matching GitHub release assets and setup instructions. The owner chose browser setup first; no editor extension is being added.
 - 2026-09-08: Audit the downloadable public Kitchen release from an isolated consumer install, verify real repo observation and adapter behavior, fix launch gaps, and refresh the root README with Kitchen screenshots and exact install/support instructions. No editor extension currently exists; clarify whether the owner wants one built or wants the working browser setup documented. Keep unknown integration status explicit.
