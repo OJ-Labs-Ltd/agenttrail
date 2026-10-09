@@ -26,7 +26,6 @@ let printFlag = false
 // Same switches as Kitchen. Map has no log reader, so `logs` is accepted but changes nothing here.
 const ALL_SOURCES = ['hooks', 'logs', 'files']
 let sources = ALL_SOURCES
-let discovery = true
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i]
   if (a === 'init') cmd = 'init'
@@ -35,7 +34,7 @@ for (let i = 0; i < argv.length; i++) {
     const bad = sources.find(s => !ALL_SOURCES.includes(s))
     if (bad !== undefined || !argv[i]) { console.error(`--sources takes ${ALL_SOURCES.join(',')}${bad ? ` (unknown: ${bad})` : ''}`); process.exit(1) }
   }
-  else if (a === '--no-discovery') discovery = false
+  else if (a === '--no-discovery') continue // accepted for parity with Kitchen; Map no longer scans for other repositories
   else if (a === 'hook') cmd = 'hook'
   else if (a === '--port') port = parseInt(argv[++i], 10)
   else if (a === '--open') openBrowser = true
@@ -571,24 +570,8 @@ const server = http.createServer((req, res) => {
     if (treeDirty) { tree = buildTree(repo); treeDirty = false }
     res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ tree, treeTruncated }))
   } else if (u.pathname === '/suggest') {
-    if (!discovery) return res.writeHead(200, { 'content-type': 'application/json' }).end('[]')
-    const seen = new Set(), out = []
-    const add = p => { if (p && p !== repo && !seen.has(p) && fs.existsSync(p)) { seen.add(p); out.push(p) } }
-    try {
-      const dir = path.join(os.homedir(), '.agenttrail')
-      for (const f of fs.readdirSync(dir)) {
-        if (!f.endsWith('.json')) continue
-        try { add(JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')).repoPath) } catch {}
-      }
-    } catch {}
-    try {
-      for (const sib of fs.readdirSync(path.dirname(repo), { withFileTypes: true })) {
-        if (!sib.isDirectory()) continue
-        const p = path.join(path.dirname(repo), sib.name)
-        if (p !== repo && fs.existsSync(path.join(p, '.git'))) add(p)
-      }
-    } catch {}
-    res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(out.slice(0, 15)))
+    // Other repositories (~/.agenttrail records, sibling git folders) are outside the watched project, so none are suggested.
+    res.writeHead(200, { 'content-type': 'application/json' }).end('[]')
   } else if (u.pathname === '/setup' && req.method === 'POST') {
     init().then(() => {
       planText = safeRead(planPath); parsed = parsePlan(planText); rebuildMatchers(); planMtime = statMtime(planPath)

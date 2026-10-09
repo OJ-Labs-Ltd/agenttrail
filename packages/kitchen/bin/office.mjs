@@ -35,7 +35,8 @@ export async function main(args=process.argv.slice(2)){
   const {port,open,stateDir,sources,discovery}=options,roots=options.roots;
   if(!roots.length&&(options.saved||process.cwd()===appRoot)){try{const saved=JSON.parse(await fs.readFile(path.join(stateDir,'projects.json'),'utf8'));if(Array.isArray(saved))roots.push(...saved.filter(s=>typeof s==='string'));}catch{}}
   if(!roots.length)roots.push(process.cwd());
-  const aliases=[...roots],unique=[];for(const root of roots){let real;try{real=await fs.realpath(root);if(!(await fs.stat(real)).isDirectory())throw 0;}catch{if(options.saved)continue;throw new Error('Project folder does not exist: '+root);}if(!unique.includes(real))unique.push(real);}
+  // `aliases` keeps the paths as given: Claude names its log directory after the cwd as launched, which may be a symlink.
+  const aliases=[],unique=[];for(const root of roots){let real;try{real=await fs.realpath(root);if(!(await fs.stat(real)).isDirectory())throw 0;}catch{if(options.saved)continue;throw new Error('Project folder does not exist: '+root);}aliases.push(root);if(!unique.includes(real))unique.push(real);}
   if(!unique.length||unique.length>12)throw new Error('Choose between one and twelve existing project folders.');
   await fs.mkdir(stateDir,{recursive:true,mode:0o700});
   let registration;try{registration=JSON.parse(await fs.readFile(path.join(stateDir,'server.json'),'utf8'));}catch{}
@@ -45,12 +46,12 @@ export async function main(args=process.argv.slice(2)){
     if(response){
       const existing=await response.json().catch(()=>null);
       if(existing?.app!=='agenttrail-kitchen')throw new Error('The registered service needs to be restarted with the updated kitchen before attaching a repo.');
-      const result=await fetch(base+'/api/attach',{method:'POST',headers:{authorization:`Bearer ${registration.hookToken}`,'content-type':'application/json'},body:JSON.stringify({projects:unique}),signal:AbortSignal.timeout(15000),redirect:'error'});
+      const result=await fetch(base+'/api/attach',{method:'POST',headers:{authorization:`Bearer ${registration.hookToken}`,'content-type':'application/json'},body:JSON.stringify({projects:aliases}),signal:AbortSignal.timeout(15000),redirect:'error'});
       const attached=await result.json();if(!result.ok)throw new Error(attached.error||'Could not attach this repo to the kitchen.');
       const url=launchUrl(base,attached.projects[0],options.example);console.log(`Kitchen updated: ${url}\nWatching ${attached.projects.map(p=>path.basename(p)).join(', ')}. Existing agents keep running.`);if(open)openBrowser(url);return;
     }
   }
-  await fs.writeFile(path.join(stateDir,'projects.json'),JSON.stringify(unique),{mode:0o600});
+  await fs.writeFile(path.join(stateDir,'projects.json'),JSON.stringify([...new Set([...unique,...aliases])]),{mode:0o600});
   const office=await startOffice({roots:unique,aliases,home:os.homedir(),stateDir,port,sources,discovery});const url=launchUrl(office.url,unique[0],options.example);
   console.log(`Agenttrail Kitchen is ready: ${url}\nWatching ${unique.map(p=>path.basename(p)).join(', ')}. Local metadata only.\nCodex and Claude observations are automatic when available. Use Connect agents for provider hooks.`);if(open)openBrowser(url);
   for(const signal of ['SIGINT','SIGTERM'])process.once(signal,async()=>{await office.close();process.exit(0);});

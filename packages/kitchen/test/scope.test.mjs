@@ -8,6 +8,23 @@ import {CrewStore} from '../src/runtime/crew.mjs';
 import {LogObserver} from '../src/connectors/logs.mjs';
 import {Projects} from '../src/agenttrail/projects.mjs';
 import {parseArgs} from '../bin/office.mjs';
+import {spawn,execFile} from 'node:child_process';
+import net from 'node:net';
+import {promisify} from 'node:util';
+import {fileURLToPath} from 'node:url';
+
+const officeCli=fileURLToPath(new URL('../bin/office.mjs',import.meta.url)),mapCli=fileURLToPath(new URL('../../../bin/agenttrail.mjs',import.meta.url));
+const freePort=()=>new Promise(resolve=>{const probe=net.createServer().listen(0,'127.0.0.1',()=>{const {port}=probe.address();probe.close(()=>resolve(port));});});
+// Starts a CLI and resolves with its stdout once `ready` matches; the child is killed when the test ends.
+function startCli(t,script,args,env,ready){
+  const child=spawn(process.execPath,[script,...args],{env:{...process.env,...env},stdio:['ignore','pipe','pipe']});t.after(()=>child.kill());
+  return new Promise((resolve,reject)=>{let out='';child.stdout.on('data',c=>{out+=c;if(ready.test(out))resolve(out);});child.on('exit',code=>reject(new Error('exited '+code+': '+out)));});
+}
+// A Claude transcript filed under the directory name Claude would give a session launched from `launchedFrom`.
+async function claudeTranscript(home,launchedFrom,name){
+  const dir=path.join(home,'.claude/projects',launchedFrom.replace(/[^a-zA-Z0-9]/g,'-'));await fs.mkdir(dir,{recursive:true});
+  await fs.writeFile(path.join(dir,name+'.jsonl'),JSON.stringify({type:'user',cwd:launchedFrom,sessionId:'claude-'+name,timestamp:new Date().toISOString(),message:{role:'user',content:'invented words'}})+'\n'+JSON.stringify({type:'assistant',cwd:launchedFrom,sessionId:'claude-'+name,uuid:'tool-one',timestamp:new Date().toISOString(),message:{content:[{type:'tool_use',id:'read-one',name:'Read',input:{file_path:path.join(launchedFrom,'notes.txt')}}]}})+'\n');
+}
 
 // Two invented projects, each with a Codex rollout and a Claude transcript under a fake home.
 async function twoProjects(t){
@@ -89,4 +106,24 @@ test('--sources and --no-discovery parse, default to everything and reject unkno
   assert.deepEqual(parseArgs([]).sources,['hooks','logs','files']);assert.equal(parseArgs([]).discovery,true);
   assert.deepEqual(parseArgs(['--sources','hooks,files']).sources,['hooks','files']);assert.equal(parseArgs(['--no-discovery']).discovery,false);
   assert.throws(()=>parseArgs(['--sources','hooks,mail']),/Unknown source/);assert.throws(()=>parseArgs(['--sources']),/Provide a value/);
+});
+test('attaching a symlinked folder to a running Kitchen lets its observer see the link-named Claude directory',async t=>{
+  const {home,watched,other}=await twoProjects(t),link=path.join(home,'link-to-other');await fs.symlink(other,link);await claudeTranscript(home,link,'via-link');
+  const stateDir=path.join(home,'state'),office=await startOffice({roots:[watched],home,stateDir,port:0});t.after(()=>office.close());
+  await promisify(execFile)(process.execPath,[officeCli,link,'--state-dir',stateDir,'--no-open'],{timeout:10000});
+  assert.ok(office.snapshot().executors.some(e=>e.project===other&&e.id.endsWith('claude-via-link')));
+});
+test('a symlinked folder stays known to the link-named Claude directory after the saved folders are reloaded',async t=>{
+  const {home,watched}=await twoProjects(t),link=path.join(home,'link-to-watched');await fs.symlink(watched,link);
+  const stateDir=path.join(home,'state'),port=await freePort();
+  await startCli(t,officeCli,[link,'--state-dir',stateDir,'--no-open','--port',String(port)],{},/ready/);
+  assert.ok(JSON.parse(await fs.readFile(path.join(stateDir,'projects.json'),'utf8')).includes(link),'the path the user gave is saved beside the real path');
+});
+test('Map suggests no other repository by default, from ~/.agenttrail or from sibling folders',async t=>{
+  const home=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'map-suggest-')));t.after(()=>fs.rm(home,{recursive:true,force:true}));
+  const repo=path.join(home,'work','watched'),sibling=path.join(home,'work','sibling');
+  await fs.mkdir(path.join(sibling,'.git'),{recursive:true});await fs.mkdir(repo,{recursive:true});await fs.mkdir(path.join(home,'.agenttrail'));
+  await fs.writeFile(path.join(home,'.agenttrail','abc.json'),JSON.stringify({repoPath:sibling}));
+  const port=await freePort();await startCli(t,mapCli,[repo,'--no-open','--port',String(port)],{HOME:home},/http:\/\/localhost/);
+  assert.deepEqual(await fetch(`http://127.0.0.1:${port}/suggest`).then(r=>r.json()),[]);
 });
