@@ -61,8 +61,11 @@ const NESTED_EVENT_FIELDS={
   work:value=>isRecord(value)?pick(value,WORK_FIELDS):undefined,
 };
 
+// Own properties only: a plain-object lookup resolves inherited names such as constructor or __proto__.
+const ownFields=(table,name)=>Object.hasOwn(table,name)?table[name]:undefined;
+
 export function allowEvent(event){
-  const fields=isRecord(event)?EVENT_FIELDS[event.kind]||ARTIFACT_FIELDS[event.kind]:undefined;
+  const fields=isRecord(event)?ownFields(EVENT_FIELDS,event.kind)||ownFields(ARTIFACT_FIELDS,event.kind):undefined;
   if(!fields)return null;
   const allowed={};
   for(const field of fields){
@@ -73,7 +76,7 @@ export function allowEvent(event){
 }
 
 export function allowHook(hook){
-  const fields=isRecord(hook)?HOOK_FIELDS[hook.hook_event_name]:undefined;
+  const fields=isRecord(hook)?ownFields(HOOK_FIELDS,hook.hook_event_name):undefined;
   if(!fields)return null;
   const allowed=pick(hook,fields.filter(field=>field!=='tool_input'));
   if(fields.includes('tool_input')&&isRecord(hook.tool_input)){

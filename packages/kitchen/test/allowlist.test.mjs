@@ -42,6 +42,14 @@ test('allowEvent refuses unknown kinds, non-objects and object values in scalar 
   assert.deepEqual(allowed,{kind:'tool-start',toolId:'t1'});
 });
 
+// Plain-object tables resolve inherited names such as constructor, so these must be refused rather than thrown on.
+for(const inherited of ['constructor','__proto__','toString','hasOwnProperty']){
+  test(`allowEvent and allowHook refuse the inherited name ${inherited}`,()=>{
+    assert.equal(allowEvent({kind:inherited}),null);
+    assert.equal(allowHook({hook_event_name:inherited}),null);
+  });
+}
+
 for(const [name,fields] of Object.entries(HOOK_FIELDS)){
   test(`allowHook keeps only the listed fields for ${name}`,()=>{
     const toolInput={file_path:'/work/proj/a.js',notebook_path:'/work/proj/n.ipynb',command:'cat ~/.aws/credentials',prompt:'secret prompt',description:'secret task',todos:[{content:'Write tests',status:'pending',activeForm:'Writing',prompt:'x'}]};

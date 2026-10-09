@@ -76,3 +76,17 @@ test('hostile events from hooks and both log formats never reach /api/state, /ap
   assert.equal(sessions.get('hook-session').file,'secrets/[redacted]/.env');assert.ok(!sessions.get('outside-session').file,'a path outside the watched root is not kept');
   assert.ok(feeds.events.startsWith('data: ')&&feeds.events.includes('hook-session'),'the SSE snapshot carries the same sessions');
 });
+
+test('POST /api/hook and /api/artifact refuse inherited kind names with accepted:false rather than an error',async t=>{
+  const home=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'orbit-inherited-'))),root=path.join(home,'project'),stateDir=path.join(home,'state');
+  t.after(()=>fs.rm(home,{recursive:true,force:true}));
+  await fs.mkdir(root);
+  const office=await startOffice({roots:[root],home,stateDir,port:0});
+  t.after(()=>office.close());
+  const {hookToken}=JSON.parse(await fs.readFile(path.join(stateDir,'server.json'),'utf8'));
+  for(const [url,kind] of [['/api/hook','constructor'],['/api/hook','__proto__'],['/api/artifact','toString']]){
+    const response=await fetch(office.url+url,{method:'POST',headers:{authorization:`Bearer ${hookToken}`,'content-type':'application/json'},body:JSON.stringify({provider:'cursor',id:'x',sessionId:'s',cwd:root,kind})});
+    assert.equal(response.status,200,`${url} ${kind}`);
+    assert.deepEqual(await response.json(),{accepted:false},`${url} ${kind}`);
+  }
+});
