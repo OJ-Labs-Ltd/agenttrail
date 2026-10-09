@@ -45,7 +45,8 @@ export function validate(schema,value,root,at='$',errors=[]){
     for(const name of schema.required||[])if(value[name]===undefined)errors.push(`${at}.${name}: required`);
     for(const [name,child] of Object.entries(value)){
       if(child===undefined)continue;
-      const rule=schema.properties?.[name];
+      // hasOwn: an inherited lookup would treat `constructor` or `__proto__` as a declared property.
+      const rule=schema.properties&&Object.hasOwn(schema.properties,name)?schema.properties[name]:undefined;
       if(rule)validate(rule,child,root,`${at}.${name}`,errors);
       else if(schema.additionalProperties===false)errors.push(`${at}.${name}: unknown property`);
       else if(typeof schema.additionalProperties==='object')validate(schema.additionalProperties,child,root,`${at}.${name}`,errors);

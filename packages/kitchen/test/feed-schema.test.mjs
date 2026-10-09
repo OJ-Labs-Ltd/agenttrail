@@ -10,6 +10,12 @@ import {validate,validateFeed} from '../src/connectors/feed.mjs';
 const claudeRaw=cwd=>({hook_event_name:'PreToolUse',session_id:'claude-session',cwd,tool_use_id:'tool-1',tool_name:'Write',tool_input:{file_path:path.join(cwd,'src/main.js')},office_event_id:'claude-1'});
 const cursorRaw=cwd=>({hook_event_name:'subagentStart',conversation_id:'cursor-parent',subagent_id:'cursor-child',workspace_roots:[cwd],generation_id:'turn-1',office_event_id:'cursor-1'});
 
+test('validator rejects keys that shadow Object.prototype members as unknown',()=>{
+  const hook=normalizeHook('claude',claudeRaw('/repo'));
+  const wire=JSON.parse(JSON.stringify(hook).replace(/}$/,',"constructor":1,"toString":"y","valueOf":2,"__proto__":{"x":1}}'));
+  assert.deepEqual(validateFeed('hookEvent',wire).sort(),['$.__proto__: unknown property','$.constructor: unknown property','$.toString: unknown property','$.valueOf: unknown property']);
+});
+
 test('validator rejects an unknown property, a missing property, a wrong type and a bad enum value without echoing values',()=>{
   const hook=normalizeHook('claude',claudeRaw('/repo'));
   assert.deepEqual(validateFeed('hookEvent',hook),[]);
