@@ -113,6 +113,13 @@ links: [map]
 files: [bin/**, public/**]
 - [ ] Restrict Map actions to trusted local requests {#runs-request-boundary}
   tech: repository review reproduced missing Host/Origin validation and mutation authentication; add coverage for UI actions, hooks and cross-board relays.
+- [x] Keep prompts, commands and secrets out of the Map's live view and saved state {#runs-payload-allowlist}
+  by: claude
+  from: agent
+  tech: handleHookEvent runs every hook through allowHook; tool detail is a project-relative file only, todos are capped and redacted, and runs loaded from older state files are rebuilt the same way; map-privacy.test.mjs checks the live endpoints and the saved file.
+- [ ] Reduce absolute paths in the Map's /whoami, /suggest and /spawn {#runs-local-action-paths}
+  from: agent
+  tech: these local-action endpoints still read and return absolute repository paths because board discovery and sibling spawning need them; scope them to trusted local requests alongside runs-request-boundary and return handles to the browser.
 - [x] Keep Map and Kitchen hook setup independent {#runs-distinct-hooks}
   by: claude
   tech: hasMapHook in bin/agenttrail.mjs matches only Map's own `agenttrail.mjs hook` command, not Kitchen's relay; test/coexistence.test.mjs installs both in either order and removes Kitchen's.
@@ -173,6 +180,14 @@ files: [bin/**, public/**]
 tech: optional kitchen package, local observers, workflow model and Three.js renderer
 files: [packages/kitchen/**]
 links: [plan-reader, runs, map]
+- [x] Keep prompts, commands and secrets out of the Kitchen browser feed {#kitchen-payload-allowlist}
+  by: claude
+  from: agent
+  tech: packages/kitchen/src/runtime/payload-allowlist.mjs lists the fields per event kind and is applied in crew.mjs and plates.mjs before storage; scrubSnapshot swaps roots for opaque handles and redacts token-like strings at the server.mjs boundary; payload-privacy.test.mjs feeds hostile events through the real HTTP service.
+- [x] Describe exactly what reaches the browser {#kitchen-privacy-docs}
+  by: claude
+  from: agent
+  tech: docs/OBSERVABILITY.md field table matches EVENT_FIELDS, ARTIFACT_FIELDS and HOOK_FIELDS, and lists what is still visible.
 - [x] Preserve native todos when Map reports newer activity {#kitchen-native-plan-precedence}
   by: claude
   tech: Projects.enrich uses board todos only when the session has no native list, so newer Map events can no longer withdraw dishes.
@@ -297,6 +312,7 @@ files: [README.md, docs/**, package.json, CONTRIBUTING.md, examples/**, .github/
   tech: README definition, sentence-case headings, npm metadata, GitHub description and topics
 
 ## decisions
+- 2026-10-09: One payload allowlist (packages/kitchen/src/runtime/payload-allowlist.mjs) serves both the Map and Kitchen. It sits under packages/kitchen/src/runtime so a single file ships in both npm packages, and the Map imports it by relative path. Every browser-bound field is listed per event kind or hook, absolute paths are reduced to project-relative, Kitchen project ids become opaque handles, and token-like strings are redacted. The Map's /whoami, /suggest and /spawn endpoints stay outside it for now and are tracked as an open task under runs.
 - 2026-10-09: ATL-2 — Kitchen gains a `--feed-only` mode for OJ Labs Director: no file watching, no log discovery, no setup/apply routes, so it reads nothing from the host. Its only inputs are POST /api/hook and /api/artifact behind a bearer token that must be supplied (it refuses to start without one), validated against a JSON Schema that rejects unknown fields; its only outputs are /api/bootstrap, /api/state and /api/events. Upstream names and structure are kept so later merges from sodiumsun/agenttrail stay easy, and no dependency is added. The schema and docs/kitchen/FEED.md are the contract Director builds against. The work lands as tasks under the existing Kitchen component, not a new one.
 - 2026-10-09: Log discovery is scoped to the watched project by default. Sessions whose recorded cwd is outside a watched root are not parsed, tracked, counted or listed, so the folder picker only suggests watched projects. --no-discovery stops all reads under the home directory. Codex rollouts are filed by date, so their 64 KiB header is still opened once to read the cwd; this is documented rather than hidden. Review cycle 1: the Claude directory filter also accepts the paths the user gave (aliases, saved in projects.json), because Claude names a directory after the cwd as launched and roots are real paths. Observer `available` now means a watched-folder session exists; the UI does not read it. /api/artifact is no longer blocked by --sources without hooks. Map honours --sources too; this is extra surface to accept or trim. Review cycle 2: the CLI now sends the paths as typed on attach and saves them beside the real paths in projects.json, so symlink aliases survive attach and --saved restarts. Map's /suggest, which listed other repositories from ~/.agenttrail and sibling git folders, now always answers empty; Map's `--no-discovery` is accepted and changes nothing. Owner to accept the documented deviation that Codex rollout headers and sibling-prefix Claude directories are still opened to read their cwd.
 - 2026-10-09: Fix the three coexistence and acknowledgement defects named in docs/OBSERVABILITY.md (ATL-4). Kitchen's native todo list changes only on a confirmed tool result and always outranks Map board todos; Map recognises only its own hook command, so both hook setups coexist. The doc's known-limits paragraphs are removed now that this holds.

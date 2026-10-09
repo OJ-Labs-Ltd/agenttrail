@@ -82,9 +82,51 @@ Both services bind to `127.0.0.1`. They require no Agenttrail account, telemetry
 
 Kitchen reads provider logs only for the folders you watch. A Claude or Codex session is used only if its recorded working directory is inside a watched root; other projects' sessions are not parsed, tracked, counted, listed or sent to the browser. Claude's log directories are filtered by name before anything is opened (a sibling folder whose name merely starts with a watched one can still have its first lines opened and discarded). Codex rollouts are not filed by project, so the first 64 KiB of each recent rollout is opened to read its working directory and discarded if it is outside the watched roots. `--sources hooks,logs,files` selects which evidence is used, and `--no-discovery` stops Kitchen listing or opening anything under `~/.codex`, `~/.claude` or `~/.agenttrail`. Map has no log reader. It suggests no other repository, with or without `--no-discovery`: it neither reads other projects' records in `~/.agenttrail` nor lists sibling folders, so its `/suggest` answer is always empty. `--sources` can switch off its hook endpoint and its file-activity watching (it still reloads `PLAN.md`). [Exactly what is touched](kitchen/CONNECTING.md#local-scope-and-discovery-limits)
 
-Kitchen processes bounded local log data and sends allowlisted activity metadata to its browser. Task titles and project paths can be visible; raw prompts, reasoning, command bodies and arbitrary tool outputs are excluded from that browser feed. Saved repo selection and connector registration live under `~/.agent-office` by default. Its order history is held in memory and reconstructed from available observations after restart.
+Both services share one allowlist, `packages/kitchen/src/runtime/payload-allowlist.mjs`. It names the only fields the browser may receive for each event kind or hook. Anything not named is dropped before the event is stored, so a new field stays private until someone adds it on purpose. Raw prompts, reasoning, command bodies, tool arguments and tool output never reach either browser.
 
-Map's Claude hook relay sends hook payloads to local Map services. The Map view can show shortened command text, search terms and other tool details, and saves recent activity and cycle summaries under `~/.agenttrail`. It does not have Kitchen's narrower browser-field policy. Check visible details before sharing screenshots or recordings.
+Three rules apply on top of the field lists:
+
+- **Paths are project-relative.** An absolute path under a watched project becomes a path relative to it; a path outside every project is reduced to its file name. Kitchen identifies each project by an opaque handle (a short hash of its root), so the browser can select and name a project without learning where it lives. The `?project=` value in a Kitchen link is that handle, not a path; a link or saved selection that still carries an absolute path no longer matches and falls back to the first project.
+- **Token-like strings are redacted.** Common key prefixes, bearer tokens, JSON web tokens, private-key blocks and long random-looking strings are replaced with `[redacted]`, wherever they appear. The check is a character-class heuristic, so it can redact a long identifier that is not a secret. File paths get only the prefix and shape patterns, not the long-string check, so a CamelCase path such as `src/components/UserProfile/SettingsPanel.tsx` is shown whole and still matches its component. A file name made of random characters with no known prefix therefore shows as written.
+- **Stray paths in free text lose their folders.** A path-like word in a title, such as `/api/users`, is cut down to its last segment (`users`) so a title cannot carry a directory outside the watched projects.
+- **Free text is capped.** Task titles, todo text and file paths are flattened to one line, redacted and cut to a fixed length.
+
+### Kitchen: fields per event kind
+
+Every Kitchen event carries the identity fields `id`, `provider`, `sessionId`, `parentId`, `cwd`, `at`, `source`, `kind` and `turnId`. In the browser feed `cwd` is project-relative. The task fields are `tasks` (each with `id`, `title` and `status`), `tasksPartial`, `planId`, `outcomeId`, `outcomeTitle` and `taskChange` (`id`, `title`, `status`). `work` carries `category`, `label`, `file` and `completed`.
+
+| Event kind | Fields beyond identity |
+| --- | --- |
+| `session-end`, `permission`, `input`, `interrupted`, `unknown` | none |
+| `session-start`, `turn-start` | task fields |
+| `turn-end` | `error` |
+| `tool-start` | `tool`, `toolId`, `file`, `work`, task fields |
+| `tool-end` | `tool`, `toolId`, `file`, `error`, `work`, task fields |
+| `activity` | `tool`, `file`, task fields |
+| `role` | `roleId`, `workflowId`, `runId`, `itemId`, `orderId` |
+| `observation` | `work` |
+
+Artifact events (`produced`, `offered`, `received`, `failed`) carry `id`, `artifactId`, `revisionId`, `provider`, `sessionId`, `cwd`, `kind`, `file`, `type`, `label` and `orderId`. All but `produced` add `handoffId`, `recipientProvider` and `recipientSessionId`. An unknown event kind is refused outright.
+
+### Map: fields per hook
+
+Map accepts six Claude Code hooks. Each carries `hook_event_name`, `session_id`, `cwd` and `agent`. The two tool hooks add `tool_name` and a reduced `tool_input`; nothing else from a hook is read.
+
+| Hook | Fields beyond identity |
+| --- | --- |
+| `SessionStart`, `SessionEnd`, `Stop`, `SubagentStop` | none |
+| `PreToolUse`, `PostToolUse` | `tool_name`; `tool_input` reduced to `file_path`, `notebook_path` and `todos` (`content`, `status`) |
+
+The Map shows a project-relative file path for a tool call that names one and no detail otherwise, so a shell command, search term, URL or prompt is never displayed. A sub-agent appears as a generic `sub-agent` row, because its description is a prompt. Run state saved under `~/.agenttrail` is built from the same fields, and a state file written by an older version is cleaned the same way when it is loaded. File names the Map sees changing, its hot-file list and its file tree get the same path redaction, so a file named like a key appears as `[redacted]`.
+
+### What can still be visible
+
+- **Titles are free text.** Kitchen task titles, native todo text and Map todo text are capped and redacted but are otherwise whatever the agent wrote, so a sensitive sentence in a title still appears. The Map shows `PLAN.md` text as written, since it is your own file.
+- **The Map's local-action endpoints are outside the allowlist.** `/whoami` and `/spawn` still return absolute repository paths so that boards can find each other and start a sibling board. `/suggest` always answers empty. They are tracked as an open task in [PLAN.md](../PLAN.md).
+- **Kitchen still opens some logs it does not use.** Codex rollouts are not filed by project, so the first 64 KiB of each recent rollout is read to find its working directory, as described above. The allowlist limits what reaches the browser, not what the process reads.
+- **The Map's registry keeps the repository path.** `repoPath` in the saved state is how `agenttrail up` restarts boards. It stays on local disk and is not served to the browser.
+
+Saved repo selection and connector registration for Kitchen live under `~/.agent-office` by default. Its order history is held in memory and reconstructed from available observations after restart. The Map saves recent activity and cycle summaries under `~/.agenttrail`. Check what is on screen before sharing screenshots or recordings.
 
 Normal watching does not edit your repo. Explicit Map setup creates plan/instruction files and a `.gitignore` entry, and offers Claude hooks; noninteractive `init` assumes yes. Kitchen's optional **Connect agents** flow writes the reviewed provider hook configuration. Neither view sends agent prompts, approves provider actions or changes native task status.
 

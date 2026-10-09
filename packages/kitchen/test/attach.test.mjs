@@ -10,6 +10,7 @@ import {CrewStore} from '../src/runtime/crew.mjs';
 import {LogObserver} from '../src/connectors/logs.mjs';
 import {normalizeHook,claudeEvents,codexEvents} from '../src/connectors/events.mjs';
 import {parseArgs,liveUrl} from '../bin/office.mjs';
+import {projectHandle} from '../src/runtime/payload-allowlist.mjs';
 const run=promisify(execFile),cli=path.resolve('bin/office.mjs');
 async function fixture(t){const home=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'kitchen-attach-')));t.after(()=>fs.rm(home,{recursive:true,force:true}));const a=path.join(home,'first'),b=path.join(home,"repo with spaces ' and $(literal)"),dir=path.join(home,'.codex/sessions/2024/01/02');await Promise.all([a,b,dir].map(d=>fs.mkdir(d,{recursive:true})));return {home,a,b,dir};}
 const line=(payload,at,type='response_item')=>JSON.stringify({type,timestamp:new Date(at).toISOString(),payload})+'\n';
@@ -24,15 +25,15 @@ test('the CLI attaches a planless repo to the existing service and replays real 
  const {home,a,b,dir}=await fixture(t);await log(dir,b);const stateDir=path.join(home,'state'),office=await startOffice({roots:[a],home,stateDir,port:0});t.after(()=>office.close());
  const before=JSON.parse(await fs.readFile(path.join(stateDir,'server.json'),'utf8'));
  const {stdout}=await run(process.execPath,[cli,b,'--state-dir',stateDir,'--no-open'],{timeout:10000});assert.match(stdout,/Kitchen updated:/);
- const printed=new URL(stdout.split('\n')[0].replace('Kitchen updated: ',''));assert.equal(printed.searchParams.get('project'),b);assert.equal(printed.searchParams.get('mode'),'live');
+ const printed=new URL(stdout.split('\n')[0].replace('Kitchen updated: ',''));assert.equal(printed.searchParams.get('project'),projectHandle(b));assert.equal(printed.searchParams.get('mode'),'live');
  const after=JSON.parse(await fs.readFile(path.join(stateDir,'server.json'),'utf8'));assert.equal(after.pid,before.pid);assert.equal(after.hookToken,before.hookToken);
- const state=await fetch(office.url+'/api/state').then(r=>r.json()),project=state.projects.find(p=>p.id===b);assert.equal(project.components.length,0);assert.equal(state.crew.filter(c=>c.project===b).length,4);assert.equal(state.executors.filter(c=>c.project===b).length,1);assert.equal(state.crew.find(c=>c.project===b&&c.workingCount).state,'reading');assert.equal(state.orders.filter(o=>o.project===b).length,1);assert.deepEqual(await fs.readdir(b),[]);
+ const state=await fetch(office.url+'/api/state').then(r=>r.json()),project=state.projects.find(p=>p.id===projectHandle(b));assert.equal(project.components.length,0);assert.equal(state.crew.filter(c=>c.project===projectHandle(b)).length,4);assert.equal(state.executors.filter(c=>c.project===projectHandle(b)).length,1);assert.equal(state.crew.find(c=>c.project===projectHandle(b)&&c.workingCount).state,'reading');assert.equal(state.orders.filter(o=>o.project===projectHandle(b)).length,1);assert.deepEqual(await fs.readdir(b),[]);
  await run(process.execPath,[cli,'--state-dir',stateDir,'--no-open'],{cwd:b,timeout:10000});assert.equal(office.snapshot().projects.length,2);
  const denied=await fetch(office.url+'/api/attach',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({projects:[b]})});assert.equal(denied.status,403);
 });
 test('CLI arguments accept current/relative repos without shell interpretation and reject missing values',()=>{
  assert.deepEqual(parseArgs(['.','../other'], '/projects/one').roots,['/projects/one','/projects/other']);assert.throws(()=>parseArgs(['--project']),/Provide a value/);assert.throws(()=>parseArgs(['--port','no']),/Choose a port/);
- assert.equal(new URL(liveUrl('http://127.0.0.1:4780',"/repo/'literal' $(safe)")).searchParams.get('project'),"/repo/'literal' $(safe)");
+ assert.equal(new URL(liveUrl('http://127.0.0.1:4780',"/repo/'literal' $(safe)")).searchParams.get('project'),projectHandle("/repo/'literal' $(safe)"));
 });
 test('a Codex call and result in the same millisecond cannot leave a phantom active tool',()=>{
  const store=new CrewStore(['/repo']),meta={id:'one',cwd:'/repo'},timestamp=new Date().toISOString();

@@ -8,6 +8,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import os from 'node:os'
 import crypto from 'node:crypto'
+import { allowHook, pathText, relativePath, titleText } from '../packages/kitchen/src/runtime/payload-allowlist.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -181,8 +182,9 @@ const clients = new Set()
 const compTouched = {} // component id -> last matching write ts
 const compRecent = {} // component id -> [{file, at}] newest first — feeds capsule work lines
 const fileHeat = {} // file -> last touch ts, capped
+// Callers match components against the real relative path; what is stored and served is its redacted copy.
 function heatFile(file, at) {
-  fileHeat[file] = at
+  fileHeat[pathText(file)] = at
   const keys = Object.keys(fileHeat)
   if (keys.length > 600) { keys.sort((a, b) => fileHeat[a] - fileHeat[b]); for (const k of keys.slice(0, 100)) delete fileHeat[k] }
 }
@@ -200,8 +202,9 @@ function touchComponents(file, at) {
   for (const m of compMatchers) if (m.res.some(re => re.test(file))) {
     compTouched[m.id] = at
     const arr = compRecent[m.id] || (compRecent[m.id] = [])
-    if (arr[0] && arr[0].file === file) arr[0] = { file, at, n: (arr[0].n || 1) + 1 }
-    else arr.unshift({ file, at, n: 1 })
+    const shown = pathText(file)
+    if (arr[0] && arr[0].file === shown) arr[0] = { file: shown, at, n: (arr[0].n || 1) + 1 }
+    else arr.unshift({ file: shown, at, n: 1 })
     if (arr.length > 6) arr.length = 6
   }
 }
@@ -214,21 +217,40 @@ const handoffs = [] // {c, from, to, at} — one session picks up where another 
 function runFor(id, cwd) {
   return runs[id] || (runs[id] = { id, agent: 'claude', cwd, startedAt: Date.now(), lastEventAt: Date.now(), todos: [], currentTool: null, recentTools: [], componentId: null, ended: false })
 }
+// The browser sees a project-relative file path and nothing else of a tool call: commands, descriptions,
+// patterns, URLs, queries and prompts are never read.
 function toolDetail(input = {}) {
   const p = input.file_path || input.notebook_path
-  const d = input.command || (p ? (relToRepo(p) ?? p) : '') || input.description || input.pattern || input.url || input.query || input.prompt || ''
-  return String(d).replace(/\s+/g, ' ').slice(0, 90)
+  return p ? relativePath(String(p), [repo]).slice(0, 90) : ''
+}
+const FILE_TOOLS = /^(Read|Edit|MultiEdit|Write|NotebookEdit)$/
+const SUBAGENT_LABEL = 'sub-agent' // the Task description is a prompt, so it is never shown
+const runCwd = cwd => (cwd === repo ? '' : relativePath(cwd, [repo]))
+const cleanTodos = todos => todos.slice(0, 50).map(t => ({ content: titleText(t.content), status: String(t.status ?? '').slice(0, 20) }))
+// Older versions saved raw commands and absolute paths; a loaded run is rebuilt from the same allowlist
+// the live hooks use, and the next save overwrites the file on disk.
+function cleanLoadedRun(r) {
+  r.cwd = runCwd(String(r.cwd || ''))
+  r.agent = titleText(r.agent, 24)
+  const cleanTool = t => t && { ...t, name: titleText(t.name, 60), detail: FILE_TOOLS.test(t.name) ? relativePath(String(t.detail || ''), [repo]).slice(0, 90) : '' }
+  r.currentTool = cleanTool(r.currentTool) || null
+  r.recentTools = (Array.isArray(r.recentTools) ? r.recentTools : []).map(cleanTool)
+  r.todos = cleanTodos(Array.isArray(r.todos) ? r.todos : [])
+  if (r.subagents) r.subagents = r.subagents.map(sa => ({ ...sa, name: SUBAGENT_LABEL }))
+  return r
 }
 function relToRepo(p) {
   if (!p) return null
   const r = path.resolve(String(p))
   return r === repo ? '' : r.startsWith(repo + path.sep) ? r.slice(repo.length + 1) : null
 }
-function handleHookEvent(ev) {
+function handleHookEvent(rawEvent) {
+  const ev = allowHook(rawEvent)
+  if (!ev) return false
   const cwd = ev.cwd || ''
   if (!(cwd === repo || cwd.startsWith(repo + path.sep))) return false
-  const run = runFor(ev.session_id || 'session', cwd)
-  if (ev.agent) run.agent = String(ev.agent).slice(0, 24).toLowerCase()
+  const run = runFor(ev.session_id || 'session', runCwd(cwd))
+  if (ev.agent) run.agent = titleText(ev.agent, 24).toLowerCase()
   run.lastEventAt = Date.now()
   stateDirty = true
   const kind = ev.hook_event_name
@@ -238,8 +260,7 @@ function handleHookEvent(ev) {
     run.ended = false
     run.currentTool = { name: ev.tool_name, detail: toolDetail(ev.tool_input), at: Date.now() }
     if (ev.tool_name === 'Task' && ev.tool_input) {
-      const name = String(ev.tool_input.description || ev.tool_input.subagent_type || 'sub-agent').slice(0, 60)
-      ;(run.subagents = run.subagents || []).push({ name, startedAt: Date.now(), ended: false })
+      ;(run.subagents = run.subagents || []).push({ name: SUBAGENT_LABEL, startedAt: Date.now(), ended: false })
       if (run.subagents.length > 12) run.subagents.shift()
     }
   } else if (kind === 'SubagentStop') {
@@ -252,13 +273,13 @@ function handleHookEvent(ev) {
     if (run.recentTools.length > 8) run.recentTools.length = 8
     run.currentTool = null
     if (ev.tool_name === 'TodoWrite' && ev.tool_input && Array.isArray(ev.tool_input.todos)) {
-      run.todos = ev.tool_input.todos.map(t => ({ content: t.content, status: t.status }))
+      run.todos = cleanTodos(ev.tool_input.todos)
     }
     const rel = relToRepo(ev.tool_input && (ev.tool_input.file_path || ev.tool_input.notebook_path))
     if (rel) {
       heatFile(rel, Date.now())
       touchComponents(rel, Date.now())
-      activity = { file: rel, at: Date.now() }
+      activity = { file: pathText(rel), at: Date.now() }
       for (const m of compMatchers) if (m.res.some(re => re.test(rel))) {
         if (run.componentId !== m.id) {
           (run.path = run.path || []).push({ c: m.id, at: Date.now() })
@@ -299,13 +320,14 @@ let stateDirty = false
 function loadState() {
   try {
     const st = JSON.parse(fs.readFileSync(stateFile, 'utf8'))
-    activity = st.activity || null
-    recentActivity = st.recentActivity || []
-    Object.assign(runs, st.runs || {})
+    const cleanFile = entry => entry && { ...entry, file: pathText(String(entry.file ?? '')) }
+    activity = cleanFile(st.activity) || null
+    recentActivity = (Array.isArray(st.recentActivity) ? st.recentActivity : []).map(cleanFile)
+    for (const [id, r] of Object.entries(st.runs || {})) runs[id] = cleanLoadedRun(r)
     cycles = st.cycles || []
     Object.assign(compTouched, st.compTouched || {})
-    Object.assign(compRecent, st.compRecent || {})
-    Object.assign(fileHeat, st.fileHeat || {})
+    for (const [id, list] of Object.entries(st.compRecent || {})) compRecent[id] = (Array.isArray(list) ? list : []).map(cleanFile)
+    for (const [file, at] of Object.entries(st.fileHeat || {})) fileHeat[pathText(file)] = at
   } catch {}
 }
 function saveState() {
@@ -342,11 +364,14 @@ function buildTree(rootDir, budgetN = 4000, perDir = 250) {
       if (IGNORE.test(r) || TMP_FILE.test(r)) continue
       if (taken >= perDir || budget <= 0) { treeTruncated = true; break }
       taken++; budget--
+      // Recursion keeps the real names; the served tree carries redacted ones, so a file named like a key
+      // is shown as [redacted] (and a component glob cannot match it by that name).
+      const shown = { name: pathText(e.name), path: pathText(r) }
       if (e.isDirectory()) {
-        const node = { name: e.name, path: r, dir: true, children: [] }
+        const node = { ...shown, dir: true, children: [] }
         out.push(node)
         queue.push({ dir: path.join(dir, e.name), rel: r, depth: depth + 1, out: node.children })
-      } else if (e.isFile()) out.push({ name: e.name, path: r, dir: false })
+      } else if (e.isFile()) out.push({ ...shown, dir: false })
     }
     out.sort((a, b) => (b.dir - a.dir) || a.name.localeCompare(b.name))
   }
@@ -452,10 +477,10 @@ try {
     // plain repo churn → liveness signal
     treeDirty = true
     stateDirty = true
-    activity = { file: f, at: Date.now() }
+    activity = { file: pathText(f), at: Date.now() }
     heatFile(f, activity.at)
     touchComponents(f, activity.at)
-    if (!recentActivity.length || recentActivity[0].file !== f) recentActivity.unshift(activity)
+    if (!recentActivity.length || recentActivity[0].file !== activity.file) recentActivity.unshift(activity)
     else recentActivity[0] = activity
     recentActivity = recentActivity.slice(0, 12)
     throttleBroadcast()

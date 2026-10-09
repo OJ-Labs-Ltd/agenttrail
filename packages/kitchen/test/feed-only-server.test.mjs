@@ -7,6 +7,7 @@ import {startOffice} from '../src/server.mjs';
 import {Projects} from '../src/agenttrail/projects.mjs';
 import {CrewStore} from '../src/runtime/crew.mjs';
 import {validateFeed} from '../src/connectors/feed.mjs';
+import {projectHandle} from '../src/runtime/payload-allowlist.mjs';
 
 const feedToken='feed-token-0123456789abcdef';
 // The state directory is never created in feed-only mode, so the test points at one that must stay absent.
@@ -48,7 +49,7 @@ test('feed-only serves only the documented routes, no csrf token, and touches no
   assert.deepEqual(validateFeed('snapshot',boot),[]);
   assert.deepEqual([boot.recentProjects,boot.discoveryLimited,boot.installed,boot.observing],[[],false,{},false]);
   assert.deepEqual(Object.values(boot.observers).map(o=>o.available),[false,false,undefined]);
-  assert.equal(boot.projects[0].id,root);assert.equal(boot.projects[0].watchStatus,'feed');assert.equal(boot.projects[0].contextSource,'feed');
+  assert.equal(boot.projects[0].id,projectHandle(root));assert.ok(!JSON.stringify(boot).includes(root));assert.equal(boot.projects[0].watchStatus,'feed');assert.equal(boot.projects[0].contextSource,'feed');
   await assert.rejects(()=>fs.stat(stateDir));
 });
 test('feed-only Projects seeds one record per root without touching the filesystem',async()=>{

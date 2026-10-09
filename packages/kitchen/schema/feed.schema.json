@@ -480,7 +480,7 @@
       "properties": {
         "app": {"const":"agenttrail-kitchen"},
         "version": {"const":2},
-        "recentProjects": {"type":"array","items":{"type":"object","properties":{"path":{"type":"string"},"name":{"type":"string"},"providers":{"type":"array","items":{"enum":["claude","codex","cursor"]}},"lastSeenAt":{"type":"number"}},"required":["path","name","providers","lastSeenAt"],"additionalProperties":false},"maxItems":24},
+        "recentProjects": {"type":"array","items":{"type":"object","properties":{"handle":{"type":"string"},"name":{"type":"string"},"providers":{"type":"array","items":{"enum":["claude","codex","cursor"]}},"lastSeenAt":{"type":"number"}},"required":["handle","name","providers","lastSeenAt"],"additionalProperties":false},"maxItems":24},
         "discoveryLimited": {"type":"boolean"},
         "projects": {"type":"array","items":{"$ref":"#/$defs/project"}},
         "crew": {"type":"array","items":{"$ref":"#/$defs/crewMember"}},

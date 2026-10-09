@@ -13,6 +13,8 @@
   "files": [
     "bin",
     "public",
+    "packages/kitchen/src/runtime/payload-allowlist.mjs",
+    "packages/kitchen/src/runtime/crew.mjs",
     "docs/demo.gif"
   ],
   "repository": {

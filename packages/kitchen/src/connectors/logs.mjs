@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { codexEvents, claudeEvents } from './events.mjs';
+import { projectHandle } from '../runtime/payload-allowlist.mjs';
 
 const LIMIT=2*1024*1024,DAY=86400_000;
 async function entries(dir){try{return await fs.readdir(dir,{withFileTypes:true});}catch{return [];}}
@@ -43,7 +44,7 @@ export class LogObserver {
       found.push(f);
     }
     this.headers=headers;
-    const projects=new Map();for(const f of found){const prior=projects.get(f.meta.cwd)||{path:f.meta.cwd,name:path.basename(f.meta.cwd),providers:[],lastSeenAt:0};if(!prior.providers.includes(f.provider))prior.providers.push(f.provider);prior.lastSeenAt=Math.max(prior.lastSeenAt,f.stat.mtimeMs);projects.set(prior.path,prior);}
+    const projects=new Map();for(const f of found){const prior=projects.get(f.meta.cwd)||{path:f.meta.cwd,handle:projectHandle(f.meta.cwd),name:path.basename(f.meta.cwd),providers:[],lastSeenAt:0};if(!prior.providers.includes(f.provider))prior.providers.push(f.provider);prior.lastSeenAt=Math.max(prior.lastSeenAt,f.stat.mtimeMs);projects.set(prior.path,prior);}
     this.recentProjects=[...projects.values()].sort((a,b)=>b.lastSeenAt-a.lastSeenAt).slice(0,24);
     // Keep watched streams ahead of discovery-only candidates under the read limit.
     found.sort((a,b)=>Number(!!this.store.rootFor(b.meta.cwd))-Number(!!this.store.rootFor(a.meta.cwd))||b.stat.mtimeMs-a.stat.mtimeMs);
