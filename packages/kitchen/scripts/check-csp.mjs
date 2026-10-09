@@ -66,12 +66,16 @@ try{
   })`});
   const {timedOut,notice,violations=[]}=outcome.result.value;
   if(timedOut)problems.push(`Kitchen was still loading after ${SCENE_TIMEOUT_MS/1000}s.`);
-  if(notice.startsWith('3D graphics could not start'))problems.push('Scene did not start: '+notice);
+  if(notice?.startsWith('3D graphics could not start'))problems.push('Scene did not start: '+notice);
   problems.push(...violations.map(violation=>'CSP violation: '+violation));
+}catch(error){
+  problems.push(error.message);
 }finally{
-  // Wait for exit: removing the profile while Chromium is still writing to it fails with ENOTEMPTY.
+  // Wait for exit, and retry: Chromium helper processes can still write to the profile after the main one has gone, which fails removal with ENOTEMPTY.
+  // A cleanup failure is only a warning, so it can never hide or flip the verdict below.
   const exited=browser.exitCode===null?new Promise(resolve=>browser.once('exit',resolve)):null;
-  browser.kill();await exited;await office.close();await fs.rm(home,{recursive:true,force:true});
+  browser.kill();await exited;await office.close();
+  await fs.rm(home,{recursive:true,force:true,maxRetries:5,retryDelay:200}).catch(error=>console.warn('Could not remove '+home+': '+error.message));
 }
 if(problems.length){console.error(problems.join('\n'));process.exit(1);}
 console.log('Kitchen rendered under script-src \'self\' with no violations and no outside requests.');
