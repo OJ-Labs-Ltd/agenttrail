@@ -146,3 +146,7 @@
 - [x] **Task 8: Fix: address 5 review findings (cycle 1)** (after 7)
   - Intent: Review left 5 findings unresolved (NEEDS_WORK): **correctness** — NEEDS_WORK One real correctness defect: a missing snapshotUrl/eventsUrl value is silently resolved against location (null becomes /null) in a browser, so the documented 'throws / cou The agent is fixing them; nothing is needed from you.
   - Commit: `75c7c74a48d3`
+
+- [x] **Task 9: Fix: address 6 review findings (cycle 2)** (after 8)
+  - Intent: Review left 6 findings unresolved (NEEDS_WORK): **correctness** — APPROVED Cycle-1 correctness defect fixed: missing or empty snapshotUrl/eventsUrl now throws before resolving against location, in embed-feed.js and embed-page.js, with tests that se The agent is fixing them; nothing is needed from you.
+  - Commit: `34dbb902e62e`
