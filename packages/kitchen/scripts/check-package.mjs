@@ -33,7 +33,7 @@ try{
   const {startOffice}=await import(pathToFileURL(path.join(installed,'src/server.mjs')));
   const {projectHandle}=await import(pathToFileURL(path.join(installed,'src/runtime/payload-allowlist.mjs')));
   service=await startOffice({roots:[first],home:observerHome,stateDir,port:0});
-  for(const [asset,mime] of [['/','text/html'],['/build/app.js','text/javascript'],['/kitchen.css','text/css'],['/fonts/nunito-800.woff2','font/woff2'],['/favicon.svg','image/svg+xml']]){
+  for(const [asset,mime] of [['/','text/html'],['/build/app.js','text/javascript'],['/embed.html','text/html'],['/embed-page.js','text/javascript'],['/build/embed.js','text/javascript'],['/kitchen.css','text/css'],['/fonts/nunito-800.woff2','font/woff2'],['/favicon.svg','image/svg+xml']]){
     const response=await fetch(service.url+asset);
     assert.equal(response.status,200,asset);
     assert.equal(response.headers.get('content-type')?.split(';')[0],mime);

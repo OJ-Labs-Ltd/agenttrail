@@ -107,7 +107,8 @@ export async function startOffice({roots,aliases=[...roots],home,stateDir,port=4
       if(!file.startsWith(path.join(appRoot,'public')+path.sep))return json(res,404,{error:'Not found.'});
       const mime={'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml','.png':'image/png','.webp':'image/webp','.woff2':'font/woff2','.glb':'model/gltf-binary'}[path.extname(file)];if(!mime)return json(res,404,{error:'Not found.'});
       const content=await fs.readFile(file);
-      res.setHeader('content-security-policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
+      // Only the embed page may be framed, and only by its own origin; every other path stays unframeable.
+      res.setHeader('content-security-policy',`default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors ${u.pathname==='/embed.html'?"'self'":"'none'"}`);
       res.writeHead(200,{'content-type':mime,'cache-control':'no-cache'});res.end(content);
     }catch(e){json(res,e.code==='ENOENT'?404:400,{error:e.code==='ENOENT'?'Not found.':e.message||'Request failed.'});}
   });

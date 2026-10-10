@@ -18,6 +18,8 @@
     "public/build",
     "public/fonts",
     "public/index.html",
+    "public/embed.html",
+    "public/embed-page.js",
     "public/kitchen.css",
     "public/favicon.svg",
     "public/paper.svg",

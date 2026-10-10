@@ -38,8 +38,8 @@ test('embed.css stays inside its own shadow root and reaches nowhere else',async
   assert.ok(selectors.length>0);
   for(const selector of selectors)assert.match(selector,/^(:host|\.kitchen\b|\.scene\b|\.notice\b|\.status\b|\.list\b)/,`${selector} is outside the embed's own classes`);
 });
-test('the page loads scripts, styles and fonts from this package only',async()=>{
-  const page=(await read('public/index.html')).toString(),css=(await read('public/kitchen.css')).toString();
-  assert.doesNotMatch(page,/<script(?![^>]*\ssrc=)|\son[a-z]+\s*=|javascript:/i);
-  for(const [name,text] of [['index.html',page],['kitchen.css',css]])assert.doesNotMatch(text.replaceAll('http://www.w3.org/2000/svg',''),/https?:\/\/|\/\/[a-z]/i,`${name} reaches outside the package`);
+test('the pages load scripts, styles and fonts from this package only',async()=>{
+  const page=(await read('public/index.html')).toString(),embedPage=(await read('public/embed.html')).toString(),css=(await read('public/kitchen.css')).toString();
+  for(const text of [page,embedPage])assert.doesNotMatch(text,/<script(?![^>]*\ssrc=)|\son[a-z]+\s*=|javascript:/i);
+  for(const [name,text] of [['index.html',page],['embed.html',embedPage],['kitchen.css',css]])assert.doesNotMatch(text.replaceAll('http://www.w3.org/2000/svg',''),/https?:\/\/|\/\/[a-z]/i,`${name} reaches outside the package`);
 });
