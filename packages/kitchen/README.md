@@ -64,6 +64,7 @@ The package smoke check installs into an isolated temporary folder without lifec
 - [Connection details and limits](https://github.com/sodiumsun/agenttrail/blob/main/docs/kitchen/CONNECTING.md)
 - [Roles and shared orders](https://github.com/sodiumsun/agenttrail/blob/main/docs/kitchen/WORKFLOW-INTEGRATION.md)
 - [Artifact receipt contract](https://github.com/sodiumsun/agenttrail/blob/main/docs/kitchen/HANDOFFS.md)
+- [Embedding the Kitchen in another page](../../docs/kitchen/EMBEDDING.md)
 - [Contributing](https://github.com/sodiumsun/agenttrail/blob/main/CONTRIBUTING.md)
 
 ## License and privacy

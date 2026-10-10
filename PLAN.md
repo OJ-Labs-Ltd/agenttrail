@@ -212,6 +212,21 @@ links: [plan-reader, runs, map]
 - [x] Read only the logs of the folders you watch {#kitchen-scoped-logs}
   by: claude
   tech: LogObserver keeps a session only when its recorded cwd is inside a watched root; --sources hooks,logs,files and --no-discovery switch evidence off, and Map honours --sources and suggests no other repositories
+- [x] Let a host page mount the Kitchen from a snapshot URL, an events URL and a token {#kitchen-embed-module}
+  by: claude
+  tech: mountKitchen(element, options) in public/src/embed.js (shadow DOM, theme, evidence event) over embed-feed.js (bearer-token fetch, abort, five-second reconnect), bundled to build/embed.js; KitchenWorld gains destroy() and a reducedMotion/maxFps option (ATL-6).
+- [x] Show the Kitchen without 3D or without motion {#kitchen-embed-fallbacks}
+  by: claude
+  tech: webglAvailable probe and a text-only chefs-and-tickets list in embed-list.js; frameGate caps rendering at 30 fps and pauses while document.hidden; reducedMotion forces the static scene (ATL-6).
+- [x] Offer the same Kitchen in an iframe {#kitchen-embed-iframe}
+  by: claude
+  tech: public/embed.html and embed-page.js read the options from the query string, drop the token from the address and post the five evidence fields only to parentOrigin; the server frames only /embed.html, and only by its own origin (ATL-6).
+- [x] Show two kitchens side by side in a demo page {#kitchen-embed-demo}
+  by: claude
+  tech: examples/embedded-kitchens with invented fixture snapshots and a loopback-only static server (ATL-6).
+- [x] Document embedding and what the embed reads and sends {#kitchen-embed-docs}
+  by: claude
+  tech: docs/kitchen/EMBEDDING.md, an Embedded Kitchen section in docs/OBSERVABILITY.md and the README fork table; embed-docs.test.mjs checks every named option, parameter and event field against the code (ATL-6).
 - [x] Bring the runnable kitchen into this repository {#kitchen-import}
   by: codex
   from: agent
@@ -316,6 +331,7 @@ files: [README.md, docs/**, package.json, CONTRIBUTING.md, examples/**, .github/
   tech: README definition, sentence-case headings, npm metadata, GitHub description and topics
 
 ## decisions
+- 2026-10-10: Embedding adds public/src/embed*.js beside app.js and touches app.js only to import three shared helpers (crewForKitchen, projectKitchens, kitchenArtifacts) that moved into activity.js unchanged, so the embed and the full page filter the same way and upstream merges stay small. KitchenWorld gains an options object (reducedMotion, maxFps) and a destroy() so several kitchens can share a page (ATL-6).
 - 2026-10-09: One payload allowlist (packages/kitchen/src/runtime/payload-allowlist.mjs) serves both the Map and Kitchen. It sits under packages/kitchen/src/runtime so a single file ships in both npm packages, and the Map imports it by relative path. Every browser-bound field is listed per event kind or hook, absolute paths are reduced to project-relative, Kitchen project ids become opaque handles, and token-like strings are redacted. The Map's /whoami, /suggest and /spawn endpoints stay outside it for now and are tracked as an open task under runs.
 - 2026-10-09: ATL-2 — Kitchen gains a `--feed-only` mode for OJ Labs Director: no file watching, no log discovery, no setup/apply routes, so it reads nothing from the host. Its only inputs are POST /api/hook and /api/artifact behind a bearer token that must be supplied (it refuses to start without one), validated against a JSON Schema that rejects unknown fields; its only outputs are /api/bootstrap, /api/state and /api/events. Upstream names and structure are kept so later merges from sodiumsun/agenttrail stay easy, and no dependency is added. The schema and docs/kitchen/FEED.md are the contract Director builds against. The work lands as tasks under the existing Kitchen component, not a new one.
 - 2026-10-09: Log discovery is scoped to the watched project by default. Sessions whose recorded cwd is outside a watched root are not parsed, tracked, counted or listed, so the folder picker only suggests watched projects. --no-discovery stops all reads under the home directory. Codex rollouts are filed by date, so their 64 KiB header is still opened once to read the cwd; this is documented rather than hidden. Review cycle 1: the Claude directory filter also accepts the paths the user gave (aliases, saved in projects.json), because Claude names a directory after the cwd as launched and roots are real paths. Observer `available` now means a watched-folder session exists; the UI does not read it. /api/artifact is no longer blocked by --sources without hooks. Map honours --sources too; this is extra surface to accept or trim. Review cycle 2: the CLI now sends the paths as typed on attach and saves them beside the real paths in projects.json, so symlink aliases survive attach and --saved restarts. Map's /suggest, which listed other repositories from ~/.agenttrail and sibling git folders, now always answers empty; Map's `--no-discovery` is accepted and changes nothing. Owner to accept the documented deviation that Codex rollout headers and sibling-prefix Claude directories are still opened to read their cwd.

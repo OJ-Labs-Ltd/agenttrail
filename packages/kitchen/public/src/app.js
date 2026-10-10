@@ -2,7 +2,7 @@ import {projectOrders,orderForChef,orderCrew,orderState,orderColor,sharedStation
 import {KitchenWorld} from './world.js';
 import {demoState} from './demo.js';
 import {apronColors} from './chefs.js';
-import {IdentityBook,activityText,goalCards,isCurrent,isWorking,needsAttention,kitchenForSession,providerName} from './activity.js';
+import {IdentityBook,activityText,goalCards,isCurrent,isWorking,needsAttention,kitchenForSession,providerName,projectKitchens,crewForKitchen,kitchenArtifacts} from './activity.js';
 import {setupKitchenRecording} from './recording.js';
 
 const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -21,7 +21,6 @@ let mode=launchParams.get('mode')==='live'?'live':launchParams.get('mode')==='de
 const state=()=>mode==='demo'?example:live;
 function saveLocation(){const url=new URL(location.href);url.searchParams.set('mode',mode);if(mode==='live'&&projectId)url.searchParams.set('project',projectId);else url.searchParams.delete('project');history.replaceState(null,'',url);}
 function getProject(){return state().projects.find(p=>p.id===projectId)||state().projects[0];}
-function crewForKitchen(p,k){return state().crew.filter(s=>s.project===p.id&&!s.ended&&kitchenForSession(s,p)?.id===k.id).sort((a,b)=>a.id.localeCompare(b.id));}
 
 const readSetting=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key))||fallback;}catch{return fallback;}};
 const identities=new IdentityBook(readSetting('kitchen-identities',[]));
@@ -48,10 +47,10 @@ function tableDetails(id){
 function render(){
   const data=state(),p=getProject();if(!p){$('notice').textContent=connected?'Choose a project to open its kitchen.':'The local service is reconnecting. You can explore the example kitchen.';return;}
   data.crew=identities.assign(data.crew);try{localStorage.setItem('kitchen-identities',JSON.stringify(identities.save()));}catch{}
-  projectId=p.id;const kitchens=p.kitchens?.length?p.kitchens:[{id:'shared',title:'Main kitchen',components:[],counts:{total:0,done:0,active:0,blocked:0}}];p.kitchens=kitchens;
+  projectId=p.id;const kitchens=projectKitchens(p);p.kitchens=kitchens;
   const k=kitchens.find(k=>k.id===kitchenId)||kitchens[0];kitchenId=k.id;
-  const components=p.components.filter(c=>k.components.includes(c.id)),crew=crewForKitchen(p,k),crewIds=new Set(crew.map(s=>s.id));
-  const artifacts=data.artifacts.filter(a=>a.project===p.id&&(k.components.includes(a.componentId)||crewIds.has(a.producer)||data.transfers.some(h=>h.artifactKey===a.id&&crewIds.has(h.recipient))||(!a.componentId&&k.id===kitchens[0].id&&!data.crew.some(s=>s.id===a.producer))));
+  const components=p.components.filter(c=>k.components.includes(c.id)),crew=crewForKitchen(data.crew,p,k),crewIds=new Set(crew.map(s=>s.id));
+  const artifacts=kitchenArtifacts(data,p,k,crewIds);
   const transfers=data.transfers.filter(t=>t.project===p.id),goals=goalCards(p,data.crew);current={data,p,k,components,crew,artifacts,transfers,goals,orders:projectOrders(data,p.id),tables:(data.tables||[]).filter(t=>t.project===p.id)};
   html($('project'),data.projects.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join(''));$('project').value=p.id;
   for(const [id,active] of [['live-mode',mode==='live'],['demo-mode',mode==='demo']]){$(id).classList.toggle('active',active);$(id).setAttribute('aria-pressed',String(active));}
@@ -63,7 +62,7 @@ function render(){
   const complete=current.tables.reduce((n,t)=>n+t.completedIds.length,0);$('table-button').textContent=`Deliverable table · ${complete} complete ↗`;
   const urgent=data.crew.filter(s=>s.project===p.id&&attention(s)),blocked=goals.filter(g=>g.counts.blocked&&!g.chefs.some(attention));
   $('attention').hidden=urgent.length+blocked.length===0;$('attention').textContent=`Needs you · ${urgent.length+blocked.length}`;
-  html($('kitchens'),kitchens.map(room=>{const cs=crewForKitchen(p,room),n=cs.filter(isWorking).length;return `<button type="button" data-kitchen="${esc(room.id)}" class="${room.id===k.id?'active':''}" aria-current="${room.id===k.id?'page':'false'}">${esc(room.title)} <small>${n} working</small>${cs.some(attention)||room.counts?.blocked?'<span class="attention-dot" title="Needs attention">!</span>':''}</button>`;}).join(''));$('kitchen-count').textContent=`${kitchens.length} ${kitchens.length===1?'kitchen':'kitchens'}`;
+  html($('kitchens'),kitchens.map(room=>{const cs=crewForKitchen(state().crew,p,room),n=cs.filter(isWorking).length;return `<button type="button" data-kitchen="${esc(room.id)}" class="${room.id===k.id?'active':''}" aria-current="${room.id===k.id?'page':'false'}">${esc(room.title)} <small>${n} working</small>${cs.some(attention)||room.counts?.blocked?'<span class="attention-dot" title="Needs attention">!</span>':''}</button>`;}).join(''));$('kitchen-count').textContent=`${kitchens.length} ${kitchens.length===1?'kitchen':'kitchens'}`;
   $('crew-count').textContent=crew.length;
   html($('roster'),crew.map(s=>`<button type="button" data-chef="${esc(s.id)}" aria-label="${esc(title(s))}, ${esc(action(s))}" class="${s.unlinkedRole?'unlinked-session ':''}${selection?.id===s.id?'selected ':''}${attention(s)?'needs-attention':''}"><span class="chef-dot" style="--chef-color:${color(s)}">${esc(s.badge)}</span><span>${esc(title(s))}<small>${esc(action(s))}</small></span>${attention(s)?'!':''}</button>`).join('')||'<span class="ticket-meta">Ready for an agent to join</span>');
   const sessions=(data.executors||data.crew).filter(s=>s.project===p.id&&!s.ended),unlinked=crew.filter(s=>s.unlinkedRole);
@@ -106,7 +105,7 @@ function renderInspector(){
     const producer=data.crew.find(s=>s.id===a.producer)||(data.executors||[]).find(s=>s.id===a.producer);
     content=`<div class="eyebrow">ON THIS PLATE</div><h2>${esc(a.label)}</h2><div class="detail-tags"><span>${esc(a.kind)}</span><span>${esc(a.source)}</span></div>${a.orderId?`<button type="button" class="kitchen-link" data-order="${esc(a.orderId)}">Open shared dish ↗</button>`:''}<h3>Artifact</h3><div class="file-label">${esc(a.file||a.artifactId)}</div><h3>Revision</h3><div class="file-label">${esc(a.revisionId)}</div>${a.workflowItem?`<h3>Workflow state</h3><p>${esc(a.workflowItem.label)}</p><p>${esc(a.workflowItem.subreddit)}</p><button type="button" class="kitchen-link" data-queue="all">Open draft queue ↗</button>`:''}<h3>Prepared by</h3>${producer?`<button type="button" class="kitchen-link" data-chef="${esc(producer.id)}">${esc(title(producer))}</button>`:`<p>${esc(a.producer||'Author not reported by the workflow')}</p>`}<h3>Handoffs</h3>${data.transfers.filter(t=>t.artifactKey===a.id).map(transferRow).join('')||'<p>Available output. No recipient has been reported.</p>'}`;
   }else if(selection.kind==='kitchens'){
-    content=`<div class="eyebrow">THE WHOLE PROJECT</div><h2>${esc(p.name)}</h2><p>One project, ${p.kitchens.length} ${p.kitchens.length===1?'kitchen':'kitchens'}. Chefs share workstations, while native orders and the deliverable table follow the project.</p>${p.kitchens.map(k=>{const cs=crewForKitchen(p,k);return `<button type="button" class="kitchen-card ${k.id===kitchenId?'current':''}" data-kitchen="${esc(k.id)}"><strong>${esc(k.title)} ↗</strong><small>${k.components.length} project components · ${cs.length} chefs · ${k.counts?.done||0}/${k.counts?.total||0} tasks complete</small></button>`;}).join('')}<h3>Recent repository changes</h3><div class="detail-list">${(p.activity||[]).slice(0,6).map(a=>`<div class="detail-row"><div>${esc(a.file)}<small>${age(a.at)} · file observation, agent unknown</small></div></div>`).join('')||'<p>No recent repository changes.</p>'}</div><h3>Plates between kitchens</h3>${data.transfers.filter(t=>{const a=data.crew.find(s=>s.id===t.sender),b=data.crew.find(s=>s.id===t.recipient);return a&&b&&kitchenForSession(a,p).id!==kitchenForSession(b,p).id;}).map(transferRow).join('')||'<p>No confirmed transfers between kitchens yet.</p>'}${p.boardUrl?`<a class="primary-action" href="${esc(p.boardUrl)}" target="_blank" rel="noopener">Open Agenttrail ↗</a>`:''}`;
+    content=`<div class="eyebrow">THE WHOLE PROJECT</div><h2>${esc(p.name)}</h2><p>One project, ${p.kitchens.length} ${p.kitchens.length===1?'kitchen':'kitchens'}. Chefs share workstations, while native orders and the deliverable table follow the project.</p>${p.kitchens.map(k=>{const cs=crewForKitchen(data.crew,p,k);return `<button type="button" class="kitchen-card ${k.id===kitchenId?'current':''}" data-kitchen="${esc(k.id)}"><strong>${esc(k.title)} ↗</strong><small>${k.components.length} project components · ${cs.length} chefs · ${k.counts?.done||0}/${k.counts?.total||0} tasks complete</small></button>`;}).join('')}<h3>Recent repository changes</h3><div class="detail-list">${(p.activity||[]).slice(0,6).map(a=>`<div class="detail-row"><div>${esc(a.file)}<small>${age(a.at)} · file observation, agent unknown</small></div></div>`).join('')||'<p>No recent repository changes.</p>'}</div><h3>Plates between kitchens</h3>${data.transfers.filter(t=>{const a=data.crew.find(s=>s.id===t.sender),b=data.crew.find(s=>s.id===t.recipient);return a&&b&&kitchenForSession(a,p).id!==kitchenForSession(b,p).id;}).map(transferRow).join('')||'<p>No confirmed transfers between kitchens yet.</p>'}${p.boardUrl?`<a class="primary-action" href="${esc(p.boardUrl)}" target="_blank" rel="noopener">Open Agenttrail ↗</a>`:''}`;
   }else if(selection.kind==='queue'){
     content=queueInspector(p);
   }else if(selection.kind==='orders'){

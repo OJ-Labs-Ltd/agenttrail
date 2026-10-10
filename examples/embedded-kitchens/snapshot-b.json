@@ -1,0 +1,27 @@
+{
+  "app": "agenttrail-kitchen",
+  "version": 2,
+  "projects": [
+    {
+      "id": "printshop",
+      "name": "Lantern Print Shop",
+      "components": [{"id": "layout", "title": "Layout"}, {"id": "proofs", "title": "Proofs"}],
+      "kitchens": [{"id": "posters", "title": "Poster run", "components": ["layout", "proofs"]}]
+    }
+  ],
+  "crew": [
+    {"id": "role:printshop:designer", "project": "printshop", "name": "Designer", "provider": "claude", "sessionId": "print-0001", "state": "writing", "freshness": "recent", "currentFile": "posters/spring.svg", "component": {"id": "layout", "title": "Layout"}},
+    {"id": "role:printshop:proofreader", "project": "printshop", "name": "Proofreader", "provider": "codex", "sessionId": "print-0002", "state": "writing", "freshness": "recent", "currentFile": "posters/spring.txt", "component": {"id": "proofs", "title": "Proofs"}},
+    {"id": "role:printshop:binder", "project": "printshop", "name": "Binder", "provider": "codex", "sessionId": "print-0003", "state": "idle", "freshness": "quiet", "component": {"id": "proofs", "title": "Proofs"}}
+  ],
+  "orders": [
+    {"id": "print-1", "number": 7, "title": "Lay out the spring poster", "project": "printshop", "status": "in_progress", "withdrawn": false, "activeChefIds": ["role:printshop:designer"], "contributors": []},
+    {"id": "print-2", "number": 8, "title": "Proofread the poster copy", "project": "printshop", "status": "in_progress", "withdrawn": false, "activeChefIds": ["role:printshop:proofreader"], "contributors": []}
+  ],
+  "artifacts": [
+    {"id": "print-plate-1", "orderId": "print-1", "label": "Poster draft", "kind": "design", "revisionId": "rev-print-1", "producer": "role:printshop:designer", "componentId": "layout"},
+    {"id": "print-plate-2", "orderId": "print-2", "label": "Copy marked up", "kind": "document", "revisionId": "rev-print-2", "producer": "role:printshop:proofreader", "componentId": "proofs"}
+  ],
+  "transfers": [],
+  "tables": []
+}

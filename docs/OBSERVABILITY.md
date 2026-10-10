@@ -76,6 +76,17 @@ Map and Kitchen have not yet consolidated their provider handling, so each keeps
 
 The field-by-field contract is in [Feed-only mode](kitchen/FEED.md).
 
+## Embedded Kitchen
+
+`mountKitchen` and the iframe page put the Kitchen inside a host page such as a ticket view. The embed reads and sends only this:
+
+- **Fetched by the browser:** the `snapshotUrl` the host supplies and, if given, the `eventsUrl`. No other address is requested: no font, script, image or analytics call, and the policy the Kitchen's server sends with its pages allows none. The bundled script, styles and graphics come from the same place as the page.
+- **Sent by the browser:** the host's bearer token, in an `Authorization` header, to those two URLs only. The token is never written to the page, a log line, an error message, storage or the address bar (the iframe page removes it from its own address after reading it).
+- **Received:** the same allowlisted snapshot as the full Kitchen, with the same redactions. Task titles, session identifiers, tool names and project-relative file names are therefore visible to whoever can open the host page. The host decides who gets a token, and the feed decides what the token may read.
+- **Posted to the host:** when a viewer follows a plate, five fields: `orderId`, `artifactId`, `label`, `kind` and `revisionId`. They go as an `agenttrail-kitchen:evidence` event on the mounted element and, in the iframe form, as a `postMessage` to the one origin the host named in `parentOrigin`. Nothing is posted without it.
+
+Nothing else leaves the page, and there is no telemetry. The embed reads no files, local storage or cookies, and it keeps no state between mounts. In `--feed-only` mode the Kitchen's own server still answers its GET routes without a token; the embed sends one regardless, so the feed in front of it is where access is enforced. How to use the embed, and the limits of a token in a query string, are in [Embedding the Kitchen](kitchen/EMBEDDING.md).
+
 ## What stays on your machine
 
 Both services bind to `127.0.0.1`. They require no Agenttrail account, telemetry service, transcript upload or extra model call. The local browser uses bundled graphics/fonts or system fonts.

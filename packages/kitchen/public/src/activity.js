@@ -4,6 +4,10 @@ export const needsAttention=s=>['permission','input','error'].includes(s.state)&
 export const isWorking=s=>s.roleId?s.workingCount>0:!s.ended&&s.freshness!=='quiet'&&['reading','writing','executing','working'].includes(s.state);
 export const isCurrent=s=>needsAttention(s)||isWorking(s);
 export const kitchenForSession=(s,p)=>p.kitchens.find(k=>k.components.includes(s?.component?.id))||p.kitchens[0];
+// What one kitchen shows. Shared by the full-page Kitchen and the embeddable module so both filter identically.
+export const projectKitchens=p=>p.kitchens?.length?p.kitchens:[{id:'shared',title:'Main kitchen',components:[],counts:{total:0,done:0,active:0,blocked:0}}];
+export const crewForKitchen=(crew,p,k)=>crew.filter(s=>s.project===p.id&&!s.ended&&kitchenForSession(s,p)?.id===k.id).sort((a,b)=>a.id.localeCompare(b.id));
+export const kitchenArtifacts=(data,p,k,crewIds)=>data.artifacts.filter(a=>a.project===p.id&&(k.components.includes(a.componentId)||crewIds.has(a.producer)||data.transfers.some(h=>h.artifactKey===a.id&&crewIds.has(h.recipient))||(!a.componentId&&k.id===projectKitchens(p)[0].id&&!data.crew.some(s=>s.id===a.producer))));
 export function activityText(s,connected=true){
   if(!connected)return 'Connection lost';
   if(s.roleId&&s.state==='idle')return s.roleStatus||'Not running';
