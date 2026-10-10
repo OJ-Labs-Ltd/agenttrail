@@ -142,3 +142,7 @@
     - npm run check, npm test, node --check bin/agenttrail.mjs and npm run build pass
   - Risk: The docs must describe only behaviour the earlier tasks actually shipped; reread embed.js and embed-page.js first. README.md is also edited upstream, so keep the hunk limited to the table row.
   - Commit: `ea70f5724f59`
+
+- [x] **Task 8: Fix: address 5 review findings (cycle 1)** (after 7)
+  - Intent: Review left 5 findings unresolved (NEEDS_WORK): **correctness** — NEEDS_WORK One real correctness defect: a missing snapshotUrl/eventsUrl value is silently resolved against location (null becomes /null) in a browser, so the documented 'throws / cou The agent is fixing them; nothing is needed from you.
+  - Commit: `75c7c74a48d3`
