@@ -212,6 +212,21 @@ links: [plan-reader, runs, map]
 - [x] Read only the logs of the folders you watch {#kitchen-scoped-logs}
   by: claude
   tech: LogObserver keeps a session only when its recorded cwd is inside a watched root; --sources hooks,logs,files and --no-discovery switch evidence off, and Map honours --sources and suggests no other repositories
+- [x] Let a host page mount the Kitchen from a snapshot URL, an events URL and a token {#kitchen-embed-module}
+  by: claude
+  tech: mountKitchen(element, options) in public/src/embed.js (shadow DOM, theme, evidence event) over embed-feed.js (bearer-token fetch, abort, five-second reconnect), bundled to build/embed.js; KitchenWorld gains destroy() and a reducedMotion/maxFps option (ATL-6).
+- [x] Show the Kitchen without 3D or without motion {#kitchen-embed-fallbacks}
+  by: claude
+  tech: webglAvailable probe and a text-only chefs-and-tickets list in embed-list.js; frameGate caps rendering at 30 fps and pauses while document.hidden; reducedMotion forces the static scene (ATL-6).
+- [x] Offer the same Kitchen in an iframe {#kitchen-embed-iframe}
+  by: claude
+  tech: public/embed.html and embed-page.js read the options from the query string, drop the token from the address and post the five evidence fields only to parentOrigin; the server frames only /embed.html, and only by its own origin (ATL-6).
+- [x] Show two kitchens side by side in a demo page {#kitchen-embed-demo}
+  by: claude
+  tech: examples/embedded-kitchens with invented fixture snapshots and a loopback-only static server (ATL-6).
+- [x] Document embedding and what the embed reads and sends {#kitchen-embed-docs}
+  by: claude
+  tech: docs/kitchen/EMBEDDING.md, an Embedded Kitchen section in docs/OBSERVABILITY.md and the README fork table; embed-docs.test.mjs checks every named option, parameter and event field against the code (ATL-6).
 - [x] Bring the runnable kitchen into this repository {#kitchen-import}
   by: codex
   from: agent

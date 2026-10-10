@@ -186,6 +186,7 @@ This is OJ Labs' fork of [sodiumsun/agenttrail](https://github.com/sodiumsun/age
 | Ticket | Change |
 | --- | --- |
 | ATL-7 | Added ATTRIBUTION.md, this section, the upstream sync routine, and a CI workflow that runs upstream's Kitchen checks on every pull request. |
+| ATL-6 | Added an embeddable Kitchen: `mountKitchen(element, options)` and an iframe page that take a snapshot URL, an events URL and a bearer token, with reduced-motion and no-WebGL fallbacks, a frame cap, a hidden-tab pause and an evidence event for the host page. [Embedding guide](docs/kitchen/EMBEDDING.md), [demo with two kitchens](examples/embedded-kitchens/README.md). |
 
 ## Contribute and license
 
