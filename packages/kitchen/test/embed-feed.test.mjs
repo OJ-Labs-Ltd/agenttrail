@@ -163,3 +163,14 @@ test('a malformed JSON frame is reported and the stream keeps going',async t=>{
   assert.deepEqual(seen.snapshots,[{n:0},{n:2}]);
   feed.close();
 });
+
+// A rendering fault must not look like a network outage: no 'offline' status and no refetch loop.
+test('an error thrown by onSnapshot is reported as an error, not as an outage',async t=>{
+  const calls=stubFetch(t,()=>json({n:0}),()=>new Response(streamOf(['data: {"n":2}\n\n'],{hang:true}),{status:200}));
+  const {seen,options}=collect({onSnapshot:()=>{throw new Error('render fault');}});
+  const feed=connectFeed(options);
+  await settle();await settle();
+  assert.deepEqual(seen.statuses,['error','error']);
+  assert.equal(calls.length,2);
+  feed.close();
+});

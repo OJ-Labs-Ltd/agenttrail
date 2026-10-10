@@ -43,7 +43,7 @@ The scene lives in a shadow root on the element you pass, so the host's styles c
 
 A bad URL or a missing token throws from `mountKitchen` before anything is drawn.
 
-The Kitchen requests the feed with `fetch`, because `EventSource` cannot send a header. If the feed is on a different origin from the host page, it must answer CORS preflight requests and allow the `Authorization` header. If a request fails or the stream ends, the Kitchen shows "Reconnecting…" and tries again every five seconds with the same token.
+The Kitchen requests the feed with `fetch`, because `EventSource` cannot send a header. If the feed is on a different origin from the host page, it must answer CORS preflight requests and allow the `Authorization` header. If a request fails or the stream ends, the Kitchen shows "Reconnecting…" and tries again every five seconds with the same token. Until the first snapshot arrives it shows "Loading…". If drawing an update fails, it shows "This kitchen could not draw the latest update." and keeps the connection, because the feed itself is fine.
 
 ## Mount it in an iframe
 

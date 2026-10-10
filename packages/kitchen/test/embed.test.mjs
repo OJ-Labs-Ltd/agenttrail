@@ -166,3 +166,15 @@ test('two mounts keep their own state',async t=>{
  assert.match(second.root.text,/Draft the post/);
  two.destroy();
 });
+
+test('the status says Loading until the first snapshot arrives, then clears',async t=>{
+ withFeed(t);
+ const {mountKitchen}=await import('../public/src/embed.js');
+ const {host,root}=fakeHost({webgl:false});
+ const mount=mountKitchen(host,options,{css,createWorld:fakeWorld});
+ const status=()=>root.find(node=>node.attributes?.role==='status').textContent;
+ assert.equal(status(),'Loading…');
+ await settled();
+ assert.equal(status(),'');
+ mount.destroy();
+});

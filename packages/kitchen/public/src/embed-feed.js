@@ -43,15 +43,18 @@ export function connectFeed({snapshotUrl,eventsUrl,token,onSnapshot,onStatus}){
     if(response.status!==200)throw new Error(`Feed answered ${response.status}.`);
     return response;
   }
+  // A throwing onSnapshot is a rendering fault, not a dropped connection: it gets its own status and no reconnect.
+  function deliver(next){
+    try{onSnapshot(next);return true;}catch{onStatus('error');return false;}
+  }
   async function cycle(){
     try{
-      onSnapshot(await (await get(snapshot)).json());
-      onStatus('live');
+      if(deliver(await (await get(snapshot)).json()))onStatus('live');
       if(!events)return;
       await readFrames((await get(events)).body,text=>{
         let next;
         try{next=JSON.parse(text);}catch{onStatus('malformed');return;}
-        onSnapshot(next);
+        deliver(next);
       });
     }catch{
       // The caught error is dropped on purpose: fetch rejections can quote request headers.

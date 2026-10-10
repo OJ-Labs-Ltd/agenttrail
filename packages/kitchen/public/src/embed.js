@@ -7,6 +7,8 @@ import {IdentityBook,isCurrent,projectKitchens,crewForKitchen,kitchenArtifacts} 
 import {projectOrders,sharedStations} from './orders.js';
 
 const EVIDENCE_EVENT='agenttrail-kitchen:evidence';
+// Any other state ('live', 'malformed') clears the line; 'loading' is the mount-time state before the first snapshot.
+const STATUS_TEXT={loading:'Loading…',offline:'Reconnecting…',error:'This kitchen could not draw the latest update.'};
 
 // css arrives from the caller because Node, where the tests import this file, cannot load a .css module.
 export function mountKitchen(element,{snapshotUrl,eventsUrl,token,theme='light',reducedMotion},{css,createWorld=(...args)=>new KitchenWorld(...args)}){
@@ -46,7 +48,8 @@ export function mountKitchen(element,{snapshotUrl,eventsUrl,token,theme='light',
   }
 
   // Started first: a bad URL or a missing token throws here, before anything is built that would need tearing down.
-  const feed=connectFeed({snapshotUrl,eventsUrl,token,onSnapshot:apply,onStatus:state=>{status.textContent=state==='offline'?'Reconnecting…':'';}});
+  const feed=connectFeed({snapshotUrl,eventsUrl,token,onSnapshot:apply,onStatus:state=>{status.textContent=STATUS_TEXT[state]??'';}});
+  status.textContent=STATUS_TEXT.loading;
 
   if(webglAvailable(()=>doc.createElement('canvas'))){
     try{
