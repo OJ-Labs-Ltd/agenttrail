@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as T from 'three';
 import {animateChef} from '../public/src/chefs.js';
 import {KitchenWorld} from '../public/src/world.js';
-import {workPose,nextWorkBeat,approachPoint} from '../public/src/motion.js';
+import {workPose,nextWorkBeat,approachPoint,frameGate} from '../public/src/motion.js';
 import {stationLayout} from '../public/src/layout.js';
 import {routeBetween,walkable} from '../public/src/routes.js';
 import {batchMeshes} from '../public/src/batch.js';
@@ -76,4 +76,12 @@ test('batching preserves world geometry and independently animated joints',()=>{
  assert.equal(root.children.length,2);assert.equal(joint.children.length,2);
  const after=new T.Box3().setFromObject(root);assert.ok(before.min.distanceTo(after.min)<1e-6);assert.ok(before.max.distanceTo(after.max)<1e-6);
  joint.rotation.z=.8;assert.ok(new T.Box3().setFromObject(root).max.distanceTo(after.max)>.1);
+});
+test('frameGate skips hidden tabs, frames inside the cap, and caps a long gap at 0.1 s',()=>{
+ assert.equal(frameGate({now:5000,last:0,hidden:true,maxFps:30}),null);
+ assert.equal(frameGate({now:1020,last:1000,hidden:false,maxFps:30}),null);
+ assert.equal(frameGate({now:1040,last:1000,hidden:false,maxFps:30}),.04);
+ assert.equal(frameGate({now:9000,last:1000,hidden:false,maxFps:30}),.1);
+ assert.equal(frameGate({now:1040,last:1000,hidden:false,maxFps:60}),.04);
+ assert.equal(frameGate({now:1040,last:1000,hidden:false,maxFps:15}),null);
 });

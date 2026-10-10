@@ -9,14 +9,15 @@ import {group,box,ball,cylinder,torus,rod,tube,material,colors,ground,wood,rando
 import {createChef,animateChef,hash} from './chefs.js';
 import {routeBetween,walkable} from './routes.js';
 import {needsAttention,isWorking} from './activity.js';
-import {workingFirst,workPose,approachPoint,nextWorkBeat} from './motion.js';
+import {workingFirst,workPose,approachPoint,nextWorkBeat,frameGate} from './motion.js';
 import {stationForChef,orderForChef,orderColor} from './orders.js';
 import {stationLayout} from './layout.js';
 
 
 export class KitchenWorld {
-  constructor(canvas,onSelect,onLabels){
-    this.layout=stationLayout(4);this.canvas=canvas;this.onSelect=onSelect;this.onLabels=onLabels;this.crew=new Map();this.plates=new Map();this.dishes=new Map();this.selected=null;this.zoom=1;this.time=0;this.paused=false;this.reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;this.demo=false;this.roomKey='';this.components=[];this.hovered=null;this.pan=new T.Vector3();
+  // reducedMotion: true/false forces it (an embedding host decides); undefined follows the visitor's media query.
+  constructor(canvas,onSelect,onLabels,{reducedMotion,maxFps=30}={}){
+    this.layout=stationLayout(4);this.canvas=canvas;this.onSelect=onSelect;this.onLabels=onLabels;this.crew=new Map();this.plates=new Map();this.dishes=new Map();this.selected=null;this.zoom=1;this.time=0;this.paused=false;this.followReducedMotion(reducedMotion);this.demo=false;this.roomKey='';this.components=[];this.hovered=null;this.pan=new T.Vector3();
     this.renderer=new T.WebGLRenderer({canvas,alpha:true,antialias:true,powerPreference:'high-performance'});this.renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=T.PCFShadowMap;this.renderer.toneMapping=T.ACESFilmicToneMapping;this.renderer.toneMappingExposure=.83;
     this.scene=new T.Scene();this.scene.background=null;this.renderer.setClearColor(0x000000,0);
     this.camera=new T.OrthographicCamera(-10,10,8,-8,.1,80);this.camera.position.set(0,22,14);this.target=new T.Vector3(0,.05,.25);this.camera.lookAt(this.target);
@@ -30,7 +31,7 @@ export class KitchenWorld {
     this.ao=new SSAOPass(this.scene,this.camera,600,400,16);this.ao.kernelRadius=.28;this.ao.minDistance=.0005;this.ao.maxDistance=.045;this.composer.addPass(this.ao);this.composer.addPass(new OutputPass());
     this.renderer.info.autoReset=false;this.raycaster=new T.Raycaster();this.pointer=new T.Vector2();this.bind();this.resize();
     this.observer=new ResizeObserver(()=>this.resize());this.observer.observe(canvas.parentElement);
-    let last=performance.now(),frames=0,measure=last;this.renderer.setAnimationLoop(now=>{if(now-last<1000/30)return;const dt=Math.min(.1,(now-last)/1000);last=now;if(!this.paused&&!document.hidden)this.time+=dt;if(!document.hidden){this.update(dt);this.renderer.info.reset();this.composer.render();frames++;if(now-measure>2000){const fps=Math.round(frames*1000/(now-measure));canvas.dataset.fps=String(fps);canvas.dataset.drawCalls=String(this.renderer.info.render.calls);canvas.dataset.chefs=String(this.crew.size);canvas.dataset.geometries=String(this.renderer.info.memory.geometries);if(fps<22&&!this.performanceMode){this.performanceMode=true;this.ao.enabled=false;this.renderer.setPixelRatio(1);this.composer.setPixelRatio(1);this.resize();canvas.dataset.quality='performance';}frames=0;measure=now;}}else{frames=0;measure=now;}});
+    let last=performance.now(),frames=0,measure=last;this.renderer.setAnimationLoop(now=>{const dt=frameGate({now,last,hidden:document.hidden,maxFps});if(dt===null){if(document.hidden){frames=0;measure=now;}return;}last=now;if(!this.paused)this.time+=dt;this.update(dt);this.renderer.info.reset();this.composer.render();frames++;if(now-measure>2000){const fps=Math.round(frames*1000/(now-measure));canvas.dataset.fps=String(fps);canvas.dataset.drawCalls=String(this.renderer.info.render.calls);canvas.dataset.chefs=String(this.crew.size);canvas.dataset.geometries=String(this.renderer.info.memory.geometries);if(fps<22&&!this.performanceMode){this.performanceMode=true;this.ao.enabled=false;this.renderer.setPixelRatio(1);this.composer.setPixelRatio(1);this.resize();canvas.dataset.quality='performance';}frames=0;measure=now;}});
   }
   batchRoom(){batchMeshes(this.room);}
   buildRoom(){
@@ -132,7 +133,16 @@ export class KitchenWorld {
     this.canvas.addEventListener('pointerup',e=>{if(!drag)this.hit(e,true);down=null;});this.canvas.addEventListener('pointercancel',()=>{down=null;});
     this.canvas.addEventListener('wheel',e=>{e.preventDefault();this.zoom=T.MathUtils.clamp(this.zoom*Math.exp(-e.deltaY*.0006),.8,1.65);this.resize();},{passive:false});
     this.canvas.addEventListener('keydown',e=>{if(e.key==='0'){this.fit();e.preventDefault();}if(['+','=','-'].includes(e.key)){this.changeZoom(e.key==='-'?-.12:.12);e.preventDefault();}});
-    matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change',e=>{this.reduced=e.matches;});
+  }
+  followReducedMotion(reducedMotion){
+    if(reducedMotion!==undefined){this.reduced=reducedMotion;return;}
+    this.motionQuery=matchMedia('(prefers-reduced-motion: reduce)');this.reduced=this.motionQuery.matches;
+    this.onMotionChange=e=>{this.reduced=e.matches;};this.motionQuery.addEventListener('change',this.onMotionChange);
+  }
+  // Several kitchens can share a page, so an embedding host must be able to release the GPU and the media-query listener.
+  destroy(){
+    this.renderer.setAnimationLoop(null);this.observer.disconnect();this.motionQuery?.removeEventListener('change',this.onMotionChange);
+    disposeBatches(this.room);disposeBatches(this.characters);this.composer.dispose();this.renderer.dispose();
   }
   hit(e,select){const rect=this.canvas.getBoundingClientRect();this.pointer.set((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);this.raycaster.setFromCamera(this.pointer,this.camera);const hits=this.raycaster.intersectObjects([this.characters,this.outputs,this.signs],true);let object=null;for(const h of hits){let p=h.object;while(p&&!p.userData.kind)p=p.parent;if(p?.userData.kind){object=p.userData;break;}}
     this.canvas.style.cursor=object?'pointer':'grab';if(select&&object)this.onSelect(object);}

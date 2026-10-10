@@ -3,6 +3,11 @@ import {isWorking,needsAttention} from './activity.js';
 export function workingFirst(crew){
   return crew.map((data,index)=>({data,index})).sort((a,b)=>Number(isWorking(b.data)||needsAttention(b.data))-Number(isWorking(a.data)||needsAttention(a.data))||a.index-b.index);
 }
+// Frame delta in seconds, or null to skip the frame: hidden tabs never render, and the cap keeps several kitchens on one page cheap.
+export function frameGate({now,last,hidden,maxFps}){
+  if(hidden||now-last<1000/maxFps)return null;
+  return Math.min(.1,(now-last)/1000);
+}
 // Poses illustrate observed work; they never change the source state or its progress.
 export function workPose(s){
   if(!isWorking(s)||s.state!=='working')return s.state;
