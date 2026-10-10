@@ -37,7 +37,7 @@
 
 ## Tasks
 
-- [ ] **Task 1: Give KitchenWorld a lifecycle, a testable frame gate and a reduced-motion/fps option**
+- [x] **Task 1: Give KitchenWorld a lifecycle, a testable frame gate and a reduced-motion/fps option**
   - Intent: Make KitchenWorld safe to create and destroy several times on one page. Add a pure `frameGate({now,last,hidden,maxFps})` to public/src/motion.js. It returns the frame delta, or null when the tab is hidden or the cap has not elapsed. The animation loop in world.js calls it instead of the inline `now-last<1000/30` and `document.hidden` checks. The constructor takes an options object `{reducedMotion, maxFps=30}`. `reducedMotion` is true, false, or undefined for 'follow the media query'. It replaces the unconditional `matchMedia(...).matches`. world.js keeps the media-query listener reference so `destroy()` can remove it. `destroy()` clears `setAnimationLoop(null)`, disposes the composer, renderer, ResizeObserver and batches, and removes the listener. Throttling and hiding behaviour is kept. app.js is changed only if the constructor signature requires it, and its default behaviour must not change. Record the decision in PLAN.md under `## decisions` before coding: 'embedding adds public/src/embed*.js beside app.js and does not refactor app.js, to keep upstream merges easy'. Standards touched: COD-1, COD-3, COD-7, COD-8, TST-1, TST-4
   - Files: `packages/kitchen/public/src/motion.js`, `packages/kitchen/public/src/world.js`, `packages/kitchen/test/motion.test.mjs`, `packages/kitchen/test/world-lifecycle.test.mjs`, `PLAN.md`
   - Acceptance criteria the planner set:
@@ -52,6 +52,7 @@
     - PLAN.md has the dated decision line
     - npm run check, npm test, node --check bin/agenttrail.mjs and npm run build all pass
   - Risk: world.js lines are very long and dense; make small edits. The existing motion.test.mjs builds a world from the prototype, so do not add required constructor state those tests would miss. The flaky persistence tests in repository memory are unrelated; retry once and say so if one fails.
+  - Commit: `9f7ab21d4e4c`
 
 - [ ] **Task 2: Add WebGL detection and a plain chefs-and-tickets fallback list** (after 1)
   - Intent: New public/src/embed-list.js, pure and DOM-light. `webglAvailable(createCanvas)` returns false when the canvas gives no 'webgl2'/'webgl' context or the call throws, so no renderer is constructed. `listModel(snapshot, projectId?)` returns `{chefs:[{id,name,state,activity}], tickets:[{id,number,title,status,artifacts:[{id,label,kind,revisionId}]}]}`. It reuses projectOrders, orderState and orderCrew from orders.js, and activityText, isCurrent and providerName from activity.js. It uses only fields the snapshot already exposes through the payload allowlist. `renderList(root, model)` builds nodes with createElement and textContent only, never innerHTML, so snapshot strings cannot inject markup. It marks the list as a labelled region and gives each artifact a real button. A pure `evidenceDetail(artifact, order)` returns the plain object the host receives, with only `{orderId, artifactId, label, kind, revisionId}`. Standards touched: COD-1, COD-2, COD-6, SEC-9, SEC-12, TST-1, TST-6
