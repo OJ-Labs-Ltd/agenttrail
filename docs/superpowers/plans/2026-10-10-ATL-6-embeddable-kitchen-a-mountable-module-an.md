@@ -54,7 +54,7 @@
   - Risk: world.js lines are very long and dense; make small edits. The existing motion.test.mjs builds a world from the prototype, so do not add required constructor state those tests would miss. The flaky persistence tests in repository memory are unrelated; retry once and say so if one fails.
   - Commit: `9f7ab21d4e4c`
 
-- [ ] **Task 2: Add WebGL detection and a plain chefs-and-tickets fallback list** (after 1)
+- [x] **Task 2: Add WebGL detection and a plain chefs-and-tickets fallback list** (after 1)
   - Intent: New public/src/embed-list.js, pure and DOM-light. `webglAvailable(createCanvas)` returns false when the canvas gives no 'webgl2'/'webgl' context or the call throws, so no renderer is constructed. `listModel(snapshot, projectId?)` returns `{chefs:[{id,name,state,activity}], tickets:[{id,number,title,status,artifacts:[{id,label,kind,revisionId}]}]}`. It reuses projectOrders, orderState and orderCrew from orders.js, and activityText, isCurrent and providerName from activity.js. It uses only fields the snapshot already exposes through the payload allowlist. `renderList(root, model)` builds nodes with createElement and textContent only, never innerHTML, so snapshot strings cannot inject markup. It marks the list as a labelled region and gives each artifact a real button. A pure `evidenceDetail(artifact, order)` returns the plain object the host receives, with only `{orderId, artifactId, label, kind, revisionId}`. Standards touched: COD-1, COD-2, COD-6, SEC-9, SEC-12, TST-1, TST-6
   - Files: `packages/kitchen/public/src/embed-list.js`, `packages/kitchen/test/embed-list.test.mjs`
   - Acceptance criteria the planner set:
@@ -67,6 +67,7 @@
     - Fixtures are invented, with no real names or paths
     - npm run check, npm test and npm run build pass
   - Risk: Confirm in payload-allowlist.mjs and a real /api/state snapshot which artifact and order fields reach the browser before naming keys. Do not widen the allowlist; if a field is missing from the browser payload, drop it from the model.
+  - Commit: `3f8dc20dd745`
 
 - [ ] **Task 3: Add a token-bearing snapshot and event-stream client with abort and reconnect** (after 2)
   - Intent: New public/src/embed-feed.js exporting `connectFeed({snapshotUrl, eventsUrl, token, onSnapshot, onStatus})`, returning `{close()}`. URLs are parsed with `new URL(x, location.href)` and must be http(s), or the call throws with a clear message (SEC-9). The snapshot is fetched with `Authorization: Bearer [REDACTED] in a header only. The token never appears in a URL, a log line, an error message or onStatus. The events stream uses fetch plus a ReadableStream reader and a small SSE `data:` line parser, because EventSource cannot send headers. Each parsed snapshot goes to onSnapshot. A non-200 response or a dropped stream reports status 'offline' and retries after a fixed delay, with a `ponytail:` comment naming the fixed-delay ceiling. close() aborts the in-flight request and cancels pending retries. If eventsUrl is omitted, the snapshot is read once. No other network calls, no telemetry. Standards touched: COD-3, COD-9, SEC-1, SEC-9, SEC-13, TST-1, TST-4, TST-5
