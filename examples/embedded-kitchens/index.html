@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer">
+  <title>Two embedded kitchens</title>
+  <style>
+    body{margin:0;padding:16px;font:14px/1.5 system-ui,sans-serif}
+    h1{margin:0 0 8px;font-size:20px}
+    .kitchens{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px;margin-top:12px}
+    .kitchens h2{margin:0 0 6px;font-size:16px}
+  </style>
+</head>
+<body>
+  <h1>Two embedded kitchens</h1>
+  <p id="status" role="status">Follow a plate to see the evidence event the host page receives.</p>
+  <div class="kitchens">
+    <section aria-labelledby="title-a"><h2 id="title-a">Harbour Bakery</h2><div id="kitchen-a"></div></section>
+    <section aria-labelledby="title-b"><h2 id="title-b">Lantern Print Shop</h2><div id="kitchen-b"></div></section>
+  </div>
+  <script type="module" src="demo.js"></script>
+</body>
+</html>

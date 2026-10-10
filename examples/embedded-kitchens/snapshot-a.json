@@ -1,0 +1,25 @@
+{
+  "app": "agenttrail-kitchen",
+  "version": 2,
+  "projects": [
+    {
+      "id": "bakery",
+      "name": "Harbour Bakery",
+      "components": [{"id": "dough", "title": "Dough"}, {"id": "ovens", "title": "Ovens"}],
+      "kitchens": [{"id": "morning", "title": "Morning bake", "components": ["dough", "ovens"]}]
+    }
+  ],
+  "crew": [
+    {"id": "role:bakery:mixer", "project": "bakery", "name": "Mixer", "provider": "codex", "sessionId": "bake-0001", "state": "writing", "freshness": "recent", "currentFile": "recipes/sourdough.md", "component": {"id": "dough", "title": "Dough"}},
+    {"id": "role:bakery:prover", "project": "bakery", "name": "Prover", "provider": "claude", "sessionId": "bake-0002", "state": "idle", "freshness": "quiet", "component": {"id": "ovens", "title": "Ovens"}}
+  ],
+  "orders": [
+    {"id": "bakery-1", "number": 1, "title": "Write the sourdough recipe card", "project": "bakery", "status": "in_progress", "withdrawn": false, "activeChefIds": ["role:bakery:mixer"], "contributors": []},
+    {"id": "bakery-2", "number": 2, "title": "Check the proving times", "project": "bakery", "status": "pending", "withdrawn": false, "activeChefIds": [], "contributors": []}
+  ],
+  "artifacts": [
+    {"id": "bakery-plate-1", "orderId": "bakery-1", "label": "Recipe card v1", "kind": "document", "revisionId": "rev-bake-1", "producer": "role:bakery:mixer", "componentId": "dough"}
+  ],
+  "transfers": [],
+  "tables": []
+}
