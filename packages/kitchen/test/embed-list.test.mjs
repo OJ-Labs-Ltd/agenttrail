@@ -76,6 +76,12 @@ test('renderList shows snapshot strings as text, never markup',()=>{
  assert.ok(texts.some(t=>t.includes('<img onerror=x>')));
  assert.ok(texts.some(t=>t.includes('<b>chef</b>')));
 });
+test('renderList says so when there are no chefs or tickets',()=>{
+ const doc=fakeDocument(),root=doc.createElement('div'),texts=[];
+ renderList(root,{chefs:[],tickets:[]},doc);
+ walk(root,n=>{if(n.textContent)texts.push(n.textContent);});
+ assert.ok(texts.includes('No chefs yet'));assert.ok(texts.includes('No tickets yet'));
+});
 test('renderList labels the region and gives each artifact a real button that reports it',()=>{
  const doc=fakeDocument(),root=doc.createElement('div'),picked=[];
  renderList(root,{chefs:[],tickets:[{id:'t',number:1,title:'Draft',status:'Queued',artifacts:[{id:'a',label:'Plate',kind:'k',revisionId:'r'}]}]},doc,artifact=>picked.push(artifact.id));

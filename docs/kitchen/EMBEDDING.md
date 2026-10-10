@@ -114,4 +114,6 @@ The token is a credential that anyone who can read it can use. How it travels de
 - With `mountKitchen` it stays in your script's memory and goes out only in the `Authorization` header of the two feed requests. Prefer this form when you can.
 - In an iframe it travels in the query string. Query strings end up in the iframe's `src`, in browser history for the page that carries it, and in access logs along the way. The embed page sets `no-referrer` so it does not leak the token onward, but it cannot undo what already recorded the address.
 
+Serve any feed that is not on the same machine over `https:`. The Kitchen accepts `http:` URLs so a local feed works, but over plain `http:` to another host the token crosses the network unencrypted.
+
 Because of that, issue a token that does one job: read the snapshot and the events for the one ticket or project being shown, with nothing else on the feed. Make it short-lived, minutes rather than days, and mint a new one each time the page opens. The Kitchen never refreshes a token. When it expires the feed will refuse it and the Kitchen will sit on "Reconnecting…" until you call `destroy()` and mount again with a fresh one, or reload the iframe with a new `src`.

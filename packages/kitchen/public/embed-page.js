@@ -4,6 +4,8 @@ const EVIDENCE_EVENT='agenttrail-kitchen:evidence';
 
 function httpUrl(value,name){
   let url;
+  // Without this, a missing parameter becomes "<origin>/null" in a browser, where a page location exists to resolve against.
+  if(typeof value!=='string'||!value.trim())throw new Error(`${name} must be an http(s) URL.`);
   try{url=new URL(value,globalThis.location?.href);}catch{throw new Error(`${name} must be an http(s) URL.`);}
   if(url.protocol!=='http:'&&url.protocol!=='https:')throw new Error(`${name} must be an http(s) URL.`);
   return url.href;

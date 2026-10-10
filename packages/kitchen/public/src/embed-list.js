@@ -27,11 +27,11 @@ export function listModel(snapshot,projectId){
 // textContent and createElement only: snapshot strings can never become markup.
 export function renderList(root,model,doc=globalThis.document,onArtifact=()=>{}){
   const el=(tag,text)=>{const node=doc.createElement(tag);if(text!==undefined)node.textContent=text;return node;};
-  const section=(heading,rows)=>{const box=el('section'),list=el('ul');box.append(el('h2',heading),list);list.append(...rows);return box;};
+  const section=(heading,rows,empty)=>{const box=el('section'),list=el('ul');box.append(el('h2',heading),rows.length?list:el('p',empty));list.append(...rows);return box;};
   root.setAttribute('role','region');
   root.setAttribute('aria-label','Kitchen activity');
   root.replaceChildren(
-    section('Chefs',model.chefs.map(c=>{const row=el('li');row.append(el('strong',c.name),el('span',` · ${c.state} · ${c.activity}`));return row;})),
+    section('Chefs',model.chefs.map(c=>{const row=el('li');row.append(el('strong',c.name),el('span',` · ${c.state} · ${c.activity}`));return row;}),'No chefs yet'),
     section('Tickets',model.tickets.map(t=>{
       const row=el('li');row.append(el('strong',`#${t.number} ${t.title}`),el('span',` · ${t.status}`));
       for(const artifact of t.artifacts){
@@ -41,7 +41,7 @@ export function renderList(root,model,doc=globalThis.document,onArtifact=()=>{})
         row.append(button);
       }
       return row;
-    }))
+    }),'No tickets yet')
   );
 }
 

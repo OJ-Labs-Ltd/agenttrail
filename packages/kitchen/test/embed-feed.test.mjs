@@ -42,6 +42,15 @@ test('connectFeed rejects non-http(s) URLs before any request is made',t=>{
   assert.equal(calls.length,0);
 });
 
+// In a browser `location` exists, so new URL(null,base) resolves to <origin>/null instead of throwing; Node has no location, which hid this.
+test('a missing or empty URL throws when a page location exists',t=>{
+  const calls=stubFetch(t);
+  globalThis.location={href:'https://host.test/page'};t.after(()=>{delete globalThis.location;});
+  for(const missing of [undefined,null,''])
+    assert.throws(()=>connectFeed(collect({snapshotUrl:missing}).options),/snapshotUrl must be an http\(s\) URL/);
+  assert.equal(calls.length,0);
+});
+
 test('connectFeed requires a token',t=>{
   stubFetch(t);
   assert.throws(()=>connectFeed(collect({token:''}).options),/token is required/);

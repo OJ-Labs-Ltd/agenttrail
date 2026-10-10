@@ -43,6 +43,12 @@ test('a snapshot or events URL that is not http(s) is rejected',()=>{
   assert.throws(()=>parseEmbedParams('?token=abc&snapshotUrl=https://host.test/s&eventsUrl=ftp://host.test/e'),/eventsUrl/);
 });
 
+test('a missing snapshotUrl throws when a page location exists',t=>{
+  globalThis.location={href:'https://host.test/embed.html'};t.after(()=>{delete globalThis.location;});
+  assert.throws(()=>parseEmbedParams('?token=abc'),/snapshotUrl must be an http\(s\) URL/);
+  assert.throws(()=>parseEmbedParams('?token=abc&snapshotUrl='),/snapshotUrl must be an http\(s\) URL/);
+});
+
 test('the token is required and never appears in an error',()=>{
   assert.throws(()=>parseEmbedParams('?snapshotUrl=https://host.test/s'),/token/);
   assert.throws(()=>parseEmbedParams('?token=secret-value&snapshotUrl=ftp://x'),error=>!/secret-value/.test(error.message));
