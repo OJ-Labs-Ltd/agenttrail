@@ -69,7 +69,8 @@
   - Risk: Confirm in payload-allowlist.mjs and a real /api/state snapshot which artifact and order fields reach the browser before naming keys. Do not widen the allowlist; if a field is missing from the browser payload, drop it from the model.
   - Commit: `3f8dc20dd745`
 
-- [ ] **Task 3: Add a token-bearing snapshot and event-stream client with abort and reconnect** (after 2)
+- [x] **Task 3: Add a token-bearing snapshot and event-stream client with abort and reconnect** (after 2)
+  - Commit: `8e016b71979a`
   - Intent: New public/src/embed-feed.js exporting `connectFeed({snapshotUrl, eventsUrl, token, onSnapshot, onStatus})`, returning `{close()}`. URLs are parsed with `new URL(x, location.href)` and must be http(s), or the call throws with a clear message (SEC-9). The snapshot is fetched with `Authorization: Bearer [REDACTED] in a header only. The token never appears in a URL, a log line, an error message or onStatus. The events stream uses fetch plus a ReadableStream reader and a small SSE `data:` line parser, because EventSource cannot send headers. Each parsed snapshot goes to onSnapshot. A non-200 response or a dropped stream reports status 'offline' and retries after a fixed delay, with a `ponytail:` comment naming the fixed-delay ceiling. close() aborts the in-flight request and cancels pending retries. If eventsUrl is omitted, the snapshot is read once. No other network calls, no telemetry. Standards touched: COD-3, COD-9, SEC-1, SEC-9, SEC-13, TST-1, TST-4, TST-5
   - Files: `packages/kitchen/public/src/embed-feed.js`, `packages/kitchen/test/embed-feed.test.mjs`
   - Acceptance criteria the planner set:
