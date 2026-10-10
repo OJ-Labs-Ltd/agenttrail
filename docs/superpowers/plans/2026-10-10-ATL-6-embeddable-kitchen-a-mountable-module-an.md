@@ -128,7 +128,7 @@
   - Risk: Keep fixtures small. Do not copy real snapshots from a running Kitchen, because that can contain real repo names. If no browser is available to confirm both scenes render, say so plainly in the report rather than implying it.
   - Commit: `2b42c2a05369`
 
-- [ ] **Task 7: Document embedding truthfully and record the work in PLAN.md and the README fork table** (after 6)
+- [x] **Task 7: Document embedding truthfully and record the work in PLAN.md and the README fork table** (after 6)
   - Intent: New docs/kitchen/EMBEDDING.md covers mountKitchen options, the iframe query parameters, the `agenttrail-kitchen:evidence` event and its detail fields, and the postMessage form with parentOrigin. It also covers the reduced-motion and no-WebGL behaviour, the frame cap, the hidden-tab pause, the package import path, and the token caveats. docs/OBSERVABILITY.md gains an embed section: the browser fetches only the caller-supplied snapshot and events URLs, sends the bearer token only to them, receives the same allowlisted payload, and posts only the five evidence fields to the host. Nothing is sent anywhere else and there is no telemetry. Add an ATL-6 row to the README 'What OJ Labs changed' table, which fork.test.mjs checks, and a link from packages/kitchen/README.md. PLAN.md: add [x] tasks with by: lines under the existing Kitchen component, and an entry under decisions. Do not add a component. Prose is British English. Standards touched: SEC-1, SEC-13, COD-7, GIT-8
   - Files: `docs/kitchen/EMBEDDING.md`, `docs/OBSERVABILITY.md`, `README.md`, `packages/kitchen/README.md`, `PLAN.md`
   - Acceptance criteria the planner set:
@@ -141,3 +141,4 @@
     - British spelling throughout, for example 'behaviour' and 'authorise'
     - npm run check, npm test, node --check bin/agenttrail.mjs and npm run build pass
   - Risk: The docs must describe only behaviour the earlier tasks actually shipped; reread embed.js and embed-page.js first. README.md is also edited upstream, so keep the hunk limited to the table row.
+  - Commit: `ea70f5724f59`
