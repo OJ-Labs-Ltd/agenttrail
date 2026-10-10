@@ -2,7 +2,7 @@ import {projectOrders,orderForChef,orderCrew,orderState,orderColor,sharedStation
 import {KitchenWorld} from './world.js';
 import {demoState} from './demo.js';
 import {apronColors} from './chefs.js';
-import {IdentityBook,activityText,goalCards,isCurrent,isWorking,needsAttention,kitchenForSession,providerName} from './activity.js';
+import {IdentityBook,activityText,goalCards,isCurrent,isWorking,needsAttention,kitchenForSession,providerName,projectKitchens,crewForKitchen,kitchenArtifacts} from './activity.js';
 import {setupKitchenRecording} from './recording.js';
 
 const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -21,7 +21,6 @@ let mode=launchParams.get('mode')==='live'?'live':launchParams.get('mode')==='de
 const state=()=>mode==='demo'?example:live;
 function saveLocation(){const url=new URL(location.href);url.searchParams.set('mode',mode);if(mode==='live'&&projectId)url.searchParams.set('project',projectId);else url.searchParams.delete('project');history.replaceState(null,'',url);}
 function getProject(){return state().projects.find(p=>p.id===projectId)||state().projects[0];}
-function crewForKitchen(p,k){return state().crew.filter(s=>s.project===p.id&&!s.ended&&kitchenForSession(s,p)?.id===k.id).sort((a,b)=>a.id.localeCompare(b.id));}
 
 const readSetting=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key))||fallback;}catch{return fallback;}};
 const identities=new IdentityBook(readSetting('kitchen-identities',[]));
@@ -48,10 +47,10 @@ function tableDetails(id){
 function render(){
   const data=state(),p=getProject();if(!p){$('notice').textContent=connected?'Choose a project to open its kitchen.':'The local service is reconnecting. You can explore the example kitchen.';return;}
   data.crew=identities.assign(data.crew);try{localStorage.setItem('kitchen-identities',JSON.stringify(identities.save()));}catch{}
-  projectId=p.id;const kitchens=p.kitchens?.length?p.kitchens:[{id:'shared',title:'Main kitchen',components:[],counts:{total:0,done:0,active:0,blocked:0}}];p.kitchens=kitchens;
+  projectId=p.id;const kitchens=projectKitchens(p);p.kitchens=kitchens;
   const k=kitchens.find(k=>k.id===kitchenId)||kitchens[0];kitchenId=k.id;
-  const components=p.components.filter(c=>k.components.includes(c.id)),crew=crewForKitchen(p,k),crewIds=new Set(crew.map(s=>s.id));
-  const artifacts=data.artifacts.filter(a=>a.project===p.id&&(k.components.includes(a.componentId)||crewIds.has(a.producer)||data.transfers.some(h=>h.artifactKey===a.id&&crewIds.has(h.recipient))||(!a.componentId&&k.id===kitchens[0].id&&!data.crew.some(s=>s.id===a.producer))));
+  const components=p.components.filter(c=>k.components.includes(c.id)),crew=crewForKitchen(data.crew,p,k),crewIds=new Set(crew.map(s=>s.id));
+  const artifacts=kitchenArtifacts(data,p,k,crewIds);
   const transfers=data.transfers.filter(t=>t.project===p.id),goals=goalCards(p,data.crew);current={data,p,k,components,crew,artifacts,transfers,goals,orders:projectOrders(data,p.id),tables:(data.tables||[]).filter(t=>t.project===p.id)};
   html($('project'),data.projects.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join(''));$('project').value=p.id;
   for(const [id,active] of [['live-mode',mode==='live'],['demo-mode',mode==='demo']]){$(id).classList.toggle('active',active);$(id).setAttribute('aria-pressed',String(active));}
@@ -63,7 +62,7 @@ function render(){
   const complete=current.tables.reduce((n,t)=>n+t.completedIds.length,0);$('table-button').textContent=`Deliverable table · ${complete} complete ↗`;
   const urgent=data.crew.filter(s=>s.project===p.id&&attention(s)),blocked=goals.filter(g=>g.counts.blocked&&!g.chefs.some(attention));
   $('attention').hidden=urgent.length+blocked.length===0;$('attention').textContent=`Needs you · ${urgent.length+blocked.length}`;
-  html($('kitchens'),kitchens.map(room=>{const cs=crewForKitchen(p,room),n=cs.filter(isWorking).length;return `<button type="button" data-kitchen="${esc(room.id)}" class="${room.id===k.id?'active':''}" aria-current="${room.id===k.id?'page':'false'}">${esc(room.title)} <small>${n} working</small>${cs.some(attention)||room.counts?.blocked?'<span class="attention-dot" title="Needs attention">!</span>':''}</button>`;}).join(''));$('kitchen-count').textContent=`${kitchens.length} ${kitchens.length===1?'kitchen':'kitchens'}`;
+  html($('kitchens'),kitchens.map(room=>{const cs=crewForKitchen(state().crew,p,room),n=cs.filter(isWorking).length;return `<button type="button" data-kitchen="${esc(room.id)}" class="${room.id===k.id?'active':''}" aria-current="${room.id===k.id?'page':'false'}">${esc(room.title)} <small>${n} working</small>${cs.some(attention)||room.counts?.blocked?'<span class="attention-dot" title="Needs attention">!</span>':''}</button>`;}).join(''));$('kitchen-count').textContent=`${kitchens.length} ${kitchens.length===1?'kitchen':'kitchens'}`;
   $('crew-count').textContent=crew.length;
   html($('roster'),crew.map(s=>`<button type="button" data-chef="${esc(s.id)}" aria-label="${esc(title(s))}, ${esc(action(s))}" class="${s.unlinkedRole?'unlinked-session ':''}${selection?.id===s.id?'selected ':''}${attention(s)?'needs-attention':''}"><span class="chef-dot" style="--chef-color:${color(s)}">${esc(s.badge)}</span><span>${esc(title(s))}<small>${esc(action(s))}</small></span>${attention(s)?'!':''}</button>`).join('')||'<span class="ticket-meta">Ready for an agent to join</span>');
   const sessions=(data.executors||data.crew).filter(s=>s.project===p.id&&!s.ended),unlinked=crew.filter(s=>s.unlinkedRole);
